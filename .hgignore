@@ -1,0 +1,44 @@
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~ Project ignores
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+syntax: glob 
+
+syntax: regexp 
+^objProxy/build/.*
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~ Generally useful ignore configurations
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# auto-generated content
+syntax: glob 
+*.pyc
+*.pyo
+
+# swap files of various origins
+syntax: glob 
+*.orig
+*~
+.*.swp
+.*.swo
+
+# Revision control miscelany
+syntax: glob 
+\.hg/
+\.hg_archival.txt
+\.svn/
+CVS/
+
+# Various Windows generated files
+syntax: glob 
+Thumbs.db
+
+# Various MacOSX generated files
+syntax: glob 
+Icon?
+\.DS_Store
+\.Trashes
+Desktop\ DB
+Desktop\ DF
+
