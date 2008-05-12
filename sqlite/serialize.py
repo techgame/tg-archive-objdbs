@@ -20,21 +20,23 @@ import pickle
 
 class ObjectSerializer(object):
     _reduceProtocol = 2
-    oids = None
     stg = None
+    objToOids = None
+    oidToObj = None
 
-    def __init__(self, oids, stg):
-        self.oids = oids
+    def __init__(self, stg, objToOids, oidToObj):
         self.stg = stg
+        self.objToOids = objToOids
+        self.oidToObj = oidToObj
 
     def __getstate__(self):
         raise RuntimeError("Tried to store storage mechanism: %r" % (self,))
 
     def oidForObj(self, obj, create=True):
         try:
-            oid = self.oids.get(obj)
+            oid = self.objToOids.get(obj)
         except TypeError:
-            oid = self.oids.get(id(obj))
+            oid = self.objToOids.get(id(obj))
 
         if oid is None and create:
             oid = self._storeObject(obj)
@@ -42,9 +44,10 @@ class ObjectSerializer(object):
 
     def setOidForObj(self, obj, oid):
         try:
-            self.oids[obj] = oid
+            self.objToOids[obj] = oid
         except TypeError:
-            self.oids[id(obj)] = oid
+            self.objToOids[id(obj)] = oid
+        self.oidToObj[oid] = obj
         return oid
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

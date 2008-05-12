@@ -19,23 +19,35 @@ import pickle
 
 class ObjectDeserializer(object):
     _reduceProtocol = 2
-    oids = None
     stg = None
+    objToOids = None
+    oidToObj = None
 
-    def __init__(self, oids, stg):
-        self.oids = oids
+    def __init__(self, stg, objToOids, oidToObj):
         self.stg = stg
+        self.objToOids = objToOids
+        self.oidToObj = oidToObj
+
+    def __getstate__(self):
+        raise RuntimeError("Tried to store storage mechanism: %r" % (self,))
 
     def load(self, oid):
         if isinstance(oid, basestring):
             return self.loadUrlPath(oid)
 
         stg_kind, otype = self.stg.getOidInfo(oid)
-        return self.loadEntry((oid, stg_kind, otype))
+        result = self.loadEntry((oid, stg_kind, otype))
+        return result
 
     def loadUrlPath(self, urlPath):
+        unique = object()
+        result = self.oidToObj.get(urlPath, unique)
+        if result is not unique:
+            return result
+
         e = self.stg.getAtURLPath(urlPath)
-        return self.loadEntry(e)
+        result = self.loadEntry(e)
+        return self._oidLoaded(urlPath, result)
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #~ Storage by Type
@@ -44,6 +56,12 @@ class ObjectDeserializer(object):
     _loadByKindMap = {}
     def loadEntry(self, entry):
         oid, stg_kind, otype = entry
+
+        unique = object()
+        result = self.oidToObj.get(oid, unique)
+        if result is not unique:
+            return result
+
         fn = self._loadByKindMap.get(stg_kind)
         if fn is not None: 
             return fn(self, oid, stg_kind, otype)
@@ -58,78 +76,90 @@ class ObjectDeserializer(object):
     def _loadAs_literal(self, oid, stg_kind, otype):
         result = self.stg.getLiteral(oid)
         if otype in ('str', 'unicode'):
-            return result
+            return self._oidLoaded(oid, result)
 
         elif not isinstance(result, basestring):
             if otype == 'bool':
-                return bool(result)
-            else:
-                return result
+                result = bool(result)
+            return self._oidLoaded(oid, result)
 
-        assert False, (stg_kind, otype, result)
+        else: assert False, (stg_kind, otype, result)
 
     @regKind('pickle')
     def _loadAs_pickle(self, oid, stg_kind, otype):
         result = self.stg.getLiteral(oid)
         result = pickle.loads(result)
-        return result
+        return self._oidLoaded(oid, result)
 
     @regKind('weakref')
     def _loadAs_weakref(self, oid, stg_kind, otype): 
         result = self.stg.getWeakref(oid)
         if otype == 'weakref':
-            return weakref.ref(result)
+            result = weakref.ref(result)
+        else: assert False, (stg_kind, otype, result)
 
-        assert False, (stg_kind, otype, result)
+        return self._oidLoaded(oid, result)
 
     @regKind('tuple')
     def _loadAs_tuple(self, oid, stg_kind, otype): 
-        result = self._stg_getOrdered(oid)
-        return tuple(result)
+        result = tuple(self._stg_getOrdered(oid))
+        return self._oidLoaded(oid, result)
 
     @regKind('list')
     def _loadAs_list(self, oid, stg_kind, otype): 
         result = self._stg_getOrdered(oid)
         if otype == 'list':
-            return list(result)
+            result = list(result)
         elif otype == 'set':
-            return set(result)
+            result = set(result)
         elif otype == 'frozenset':
-            return frozenset(result)
+            result = frozenset(result)
 
-        assert False, (stg_kind, otype, result)
+        else: assert False, (stg_kind, otype, result)
+
+        return self._oidLoaded(oid, result)
 
     @regKind('map')
     def _loadAs_map(self, oid, stg_kind, otype): 
         result = self._stg_getMapping(oid)
         if otype == 'dict':
-            return dict(result)
+            result = dict(result)
 
-        assert False, (stg_kind, otype, result)
+        else: assert False, (stg_kind, otype, result)
+
+        return self._oidLoaded(oid, result)
+
 
     @regKind('obj')
     def _loadAs_obj(self, oid, stg_kind, otype): 
-        reduction = dict(self._stg_getMapping(oid))
+        load = self.loadEntry
+        reduction = self.stg.getMapping(oid)
+        reduction = dict((load(k), v) for k, v in reduction)
+
         klass = self.lookupOType(otype)
 
-        args = reduction.get('args', ())
+        args = [load(v) for v in reduction.get('args', ())]
         obj = klass.__new__(klass, *args)
+        self._oidLoaded(oid, obj)
+
 
         if 'state' in reduction:
+            state = load(reduction['state'])
             if hasattr(obj, '__setstate__'):
-                obj.__setstate__(reduction['state'])
-            else:
-                obj.__dict__.update(reduction['state'])
+                obj.__setstate__(state)
+            else: obj.__dict__.update(state)
 
         if 'listitems' in reduction:
+            listitems = load(reduction['listitems'])
             if hasattr(obj, 'extend'):
-                obj.extend(reduction['listitems'])
+                obj.extend(listitems)
             else:
-                for v in reduction['listitems']:
+                for v in listitems:
                     obj.append(v)
 
         if 'dictitems' in reduction:
-            for k, v in reduction['dictitems'].iteritems():
+            dictitems = load(reduction['dictitems'])
+            for k, v in dictitems.iteritems():
                 obj[k] = v
 
         return obj
@@ -139,6 +169,18 @@ class ObjectDeserializer(object):
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #~ Utilities
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    def _oidLoaded(self, oid, obj):
+        self.setOidForObj(oid, obj)
+        return obj
+
+    def setOidForObj(self, obj, oid):
+        try:
+            self.objToOids[obj] = oid
+        except TypeError:
+            self.objToOids[id(obj)] = oid
+        self.oidToObj[oid] = obj
+        return oid
 
     def lookupOType(self, otype):
         path, dot, name = otype.rpartition('.')

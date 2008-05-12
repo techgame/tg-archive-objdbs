@@ -60,20 +60,20 @@ if __name__=='__main__':
     mobj.testObj = tobj
     mobj.testDict = tdict
     mobj.testList = tlist
+    mobj.mobj = mobj
+    mobj.name = 'lala'
     oreg.store(mobj, 'mobj')
 
     wr = weakref.ref(mobj)
     oreg.store(wr)
 
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
     print
     for url, oid in oreg.allURLPaths():
         print 'load url:', url, 'oid:', oid
         r = oreg.load(oid)
-        pprint(r)
+        pprint((r, vars(r)))
         print
     print
-
-    tlist2 = oreg.load('tlist')
-    assert tlist2.desc == tlist.desc
-    print tlist2, vars(tlist2)
 

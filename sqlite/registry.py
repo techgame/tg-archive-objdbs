@@ -21,7 +21,8 @@ from sqlStorage import SQLStorage
 
 class SQLObjectRegistry(object):
     def __init__(self, filename):
-        self.oids = {}
+        self.objToOids = {}
+        self.oidToObj = {}
         self._initFileStorage(filename)
 
     def __getstate__(self):
@@ -32,8 +33,8 @@ class SQLObjectRegistry(object):
         self.db.isolation_level = None
 
         self.stg = SQLStorage(self.db.cursor(), 1000)
-        self._save = ObjectSerializer(self.oids, self.stg)
-        self._load = ObjectDeserializer(self.oids, self.stg)
+        self._save = ObjectSerializer(self.stg, self.objToOids, self.oidToObj)
+        self._load = ObjectDeserializer(self.stg, self.objToOids, self.oidToObj)
 
     def store(self, obj, urlpath=None):
         return self._save.store(obj, urlpath)
