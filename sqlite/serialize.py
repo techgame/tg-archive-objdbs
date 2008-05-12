@@ -104,27 +104,6 @@ class ObjectSerializer(object):
         return self._stg_setLiteral(
             pobj, type(obj).__name__, 'pickle')
 
-    @regType([InstanceType])
-    def _storeAs_classicInstanceType(self, obj):
-        try: args = obj.__getinitargs__
-        except AttributeError:
-            args = None
-        else: args = args()
-
-        try: state = obj.__getinitargs__
-        except AttributeError:
-            state = obj.__dict__
-        else: state = state()
-
-        otype = self.otypeForObj(obj)
-        reduction = [
-            #('ns', otype),
-            ('args', args), ('state', state)]
-        reduction = [(k,v) for k,v in reduction if v]
-
-        oid = self._stg_oid(obj, 'classic', otype)
-        return self._stg_setMapping(oid, reduction)
-
     @regType([tuple])
     def _storeAs_tuple(self, obj):
         oid = self.oidForObj(obj, False)

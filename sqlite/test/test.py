@@ -11,9 +11,6 @@ from TG.objdbs.sqlite import SQLObjectRegistry
 #~ Definitions 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-class TestClassic:
-    pass
-
 class TestObject(object):
     pass
 
@@ -68,11 +65,6 @@ if __name__=='__main__':
     wr = weakref.ref(mobj)
     oreg.store(wr)
 
-    tcl = TestClassic()
-    tcl.description = 'this is a classic class instance var'
-    tcl.answer = ('*', 2, 3, 7)
-    oreg.store(tcl, 'tcl')
-
     print
     for url, oid in oreg.allURLPaths():
         print 'load url:', url, 'oid:', oid
@@ -80,4 +72,8 @@ if __name__=='__main__':
         pprint(r)
         print
     print
+
+    tlist2 = oreg.load('tlist')
+    assert tlist2.desc == tlist.desc
+    print tlist2, vars(tlist2)
 

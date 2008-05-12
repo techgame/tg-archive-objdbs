@@ -102,7 +102,7 @@ create view if not exists weakrefs_lookup as
 
 create view if not exists exports_lookup as
     select 
-        oid, stg_kind, otype
+        urlpath, oid, stg_kind, otype
 
     from exports as tbl
     join oid_lookup

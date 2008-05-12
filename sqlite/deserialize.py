@@ -27,6 +27,9 @@ class ObjectDeserializer(object):
         self.stg = stg
 
     def load(self, oid):
+        if isinstance(oid, basestring):
+            return self.loadUrlPath(oid)
+
         stg_kind, otype = self.stg.getOidInfo(oid)
         return self.loadEntry((oid, stg_kind, otype))
 
@@ -74,11 +77,10 @@ class ObjectDeserializer(object):
     @regKind('weakref')
     def _loadAs_weakref(self, oid, stg_kind, otype): 
         result = self.stg.getWeakref(oid)
-        print (oid, stg_kind, otype, result)
         if otype == 'weakref':
-            #return weakref.ref(result)
-            pass
-        return (stg_kind, otype, result)
+            return weakref.ref(result)
+
+        assert False, (stg_kind, otype, result)
 
     @regKind('tuple')
     def _loadAs_tuple(self, oid, stg_kind, otype): 
@@ -105,21 +107,46 @@ class ObjectDeserializer(object):
 
         assert False, (stg_kind, otype, result)
 
-    @regKind('classic')
-    def _loadAs_classic(self, oid, stg_kind, otype): 
-        result = self._stg_getMapping(oid)
-        return (stg_kind, otype, result)
-
     @regKind('obj')
     def _loadAs_obj(self, oid, stg_kind, otype): 
-        result = self._stg_getMapping(oid)
-        return (stg_kind, otype, result)
+        reduction = dict(self._stg_getMapping(oid))
+        klass = self.lookupOType(otype)
+
+        args = reduction.get('args', ())
+        obj = klass.__new__(klass, *args)
+
+        if 'state' in reduction:
+            if hasattr(obj, '__setstate__'):
+                obj.__setstate__(reduction['state'])
+            else:
+                obj.__dict__.update(reduction['state'])
+
+        if 'listitems' in reduction:
+            if hasattr(obj, 'extend'):
+                obj.extend(reduction['listitems'])
+            else:
+                for v in reduction['listitems']:
+                    obj.append(v)
+
+        if 'dictitems' in reduction:
+            for k, v in reduction['dictitems'].iteritems():
+                obj[k] = v
+
+        return obj
 
     del regKind
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #~ Utilities
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    def lookupOType(self, otype):
+        path, dot, name = otype.rpartition('.')
+        if dot:
+            m = __import__(path, {}, {}, [name])
+        else: m = __builtins__
+
+        return getattr(m, name)
 
     def _stg_getOrdered(self, oid):
         load = self.loadEntry
