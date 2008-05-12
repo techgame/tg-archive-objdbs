@@ -433,7 +433,7 @@ class TestObjectProxies(unittest.TestCase, VerifyMixin):
     def testClass(self):
         value = TestObject
         value.wilbur = "was there"
-        value.fun = "True"
+        value.fun = True
 
         self.verifyBase(value)
         self.verifyWeakref(value)
@@ -444,7 +444,7 @@ class TestObjectProxies(unittest.TestCase, VerifyMixin):
     def testObject(self):
         value = TestObject()
         value.wilbur = "was there"
-        value.fun = "True"
+        value.fun = True
 
         self.verifyBase(value)
         self.verifyWeakref(value)
