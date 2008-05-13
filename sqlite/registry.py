@@ -20,7 +20,8 @@ from sqlStorage import SQLStorage
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class SQLObjectRegistry(object):
-    def __init__(self, filename):
+    def __init__(self, filename, dbid=None):
+        self.dbid = dbid or filename
         self.objToOids = {}
         self.oidToObj = {}
         self._initFileStorage(filename)
@@ -32,15 +33,15 @@ class SQLObjectRegistry(object):
         self.db = sqlite3.connect(filename)
         self.db.isolation_level = None
 
-        self.stg = SQLStorage(self.db.cursor(), 1000)
-        self._save = ObjectSerializer(self.stg, self.objToOids, self.oidToObj)
-        self._load = ObjectDeserializer(self.stg, self.objToOids, self.oidToObj)
+        self.stg = SQLStorage(self.db, 1000)
+        self._save = ObjectSerializer(self)
+        self._load = ObjectDeserializer(self)
 
     def store(self, obj, urlpath=None):
         return self._save.store(obj, urlpath)
 
     def load(self, oid):
-        return self._load.load(oid)
+        return self._load.loadOid(oid)
 
     def allOids(self):
         return self.stg.allOids()

@@ -12,6 +12,7 @@
 
 import weakref
 import pickle 
+from .proxy import ObjOidProxy
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~ Definitions 
@@ -19,19 +20,24 @@ import pickle
 
 class ObjectDeserializer(object):
     _reduceProtocol = 2
+    dbid = None
     stg = None
     objToOids = None
     oidToObj = None
+    Proxy = ObjOidProxy
 
-    def __init__(self, stg, objToOids, oidToObj):
-        self.stg = stg
-        self.objToOids = objToOids
-        self.oidToObj = oidToObj
+    def __init__(self, registry):
+        self.dbid = registry.dbid
+        self.stg = registry.stg
+        self.objToOids = registry.objToOids
+        self.oidToObj = registry.oidToObj
 
+    def __repr__(self):
+        return self.dbid
     def __getstate__(self):
         raise RuntimeError("Tried to store storage mechanism: %r" % (self,))
 
-    def load(self, oid, depth=1):
+    def loadOid(self, oid, depth=1):
         if isinstance(oid, basestring):
             return self.loadUrlPath(oid)
 
@@ -54,8 +60,6 @@ class ObjectDeserializer(object):
     #~ Storage by Type
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    _stgKindsAlwaysLoad = frozenset(['lit'])
-
     _loadByKindMap = {}
     def loadEntry(self, entry, depth):
         oid, stg_kind, otype = entry
@@ -65,20 +69,20 @@ class ObjectDeserializer(object):
         if result is not unique:
             return result
 
-        if depth == 0 and stg_kind not in self._stgKindsAlwaysLoad:
-            print "Make LazyLoad for:", oid
+        fn, allowProxy = self._loadByKindMap[stg_kind]
+        if depth == 0 and allowProxy:
+            return self.Proxy(self, oid)
 
-        fn = self._loadByKindMap[stg_kind]
         result = fn(self, oid, stg_kind, otype, depth-1)
         return result
 
-    def regKind(kind, map=_loadByKindMap):
+    def regKind(kind, allowProxy, map=_loadByKindMap):
         def registerFn(fn):
-            map[kind] = fn
+            map[kind] = fn, allowProxy
             return fn
         return registerFn
 
-    @regKind('lit')
+    @regKind('lit', False)
     def _loadAs_literal(self, oid, stg_kind, otype, depth):
         result = self.stg.getLiteral(oid)
         if otype in ('str', 'unicode'):
@@ -91,13 +95,13 @@ class ObjectDeserializer(object):
 
         else: assert False, (stg_kind, otype, result)
 
-    @regKind('pickle')
+    @regKind('pickle', True)
     def _loadAs_pickle(self, oid, stg_kind, otype, depth):
         result = self.stg.getLiteral(oid)
         result = pickle.loads(result)
         return self._oidLoaded(result, otype, oid)
 
-    @regKind('weakref')
+    @regKind('weakref', False)
     def _loadAs_weakref(self, oid, stg_kind, otype, depth):
         result = self.stg.getWeakref(oid)
         if otype == 'weakref':
@@ -106,12 +110,12 @@ class ObjectDeserializer(object):
 
         return self._oidLoaded(result, otype, oid)
 
-    @regKind('tuple')
+    @regKind('tuple', False)
     def _loadAs_tuple(self, oid, stg_kind, otype, depth):
         result = tuple(self._stg_getOrdered(oid, depth))
         return self._oidLoaded(result, otype, oid)
 
-    @regKind('list')
+    @regKind('list', True)
     def _loadAs_list(self, oid, stg_kind, otype, depth):
         result = self._stg_getOrdered(oid, depth)
         if otype == 'list':
@@ -125,7 +129,7 @@ class ObjectDeserializer(object):
 
         return self._oidLoaded(result, otype, oid)
 
-    @regKind('map')
+    @regKind('map', True)
     def _loadAs_map(self, oid, stg_kind, otype, depth):
         result = self._stg_getMapping(oid, depth)
         if otype == 'dict':
@@ -136,7 +140,7 @@ class ObjectDeserializer(object):
         return self._oidLoaded(result, otype, oid)
 
 
-    @regKind('obj')
+    @regKind('obj', True)
     def _loadAs_obj(self, oid, stg_kind, otype, depth):
         load = self.loadEntry
         reduction = self.stg.getMapping(oid)

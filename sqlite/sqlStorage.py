@@ -26,8 +26,8 @@ class SQLStorage(object):
         _sql.createOidReferenceViews,
         ]
 
-    def __init__(self, cursor, nextOid=None):
-        self.cursor = cursor
+    def __init__(self, dbConn, nextOid=None):
+        self.cursor = dbConn.cursor()
         if nextOid is not None:
             self.nextOid = nextOid
 

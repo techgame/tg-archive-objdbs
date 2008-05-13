@@ -20,14 +20,16 @@ import pickle
 
 class ObjectSerializer(object):
     _reduceProtocol = 2
+    dbid = None
     stg = None
     objToOids = None
     oidToObj = None
 
-    def __init__(self, stg, objToOids, oidToObj):
-        self.stg = stg
-        self.objToOids = objToOids
-        self.oidToObj = oidToObj
+    def __init__(self, registry):
+        self.dbid = registry.dbid
+        self.stg = registry.stg
+        self.objToOids = registry.objToOids
+        self.oidToObj = registry.oidToObj
 
     def __getstate__(self):
         raise RuntimeError("Tried to store storage mechanism: %r" % (self,))

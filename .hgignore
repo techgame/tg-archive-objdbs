@@ -6,6 +6,7 @@ syntax: glob
 
 syntax: regexp 
 ^objProxy/build/.*
+^sqlite/test/test*.db
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~ Generally useful ignore configurations

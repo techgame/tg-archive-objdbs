@@ -74,14 +74,21 @@ def loadObjs(filename):
     oreg = SQLObjectRegistry(filename)
     print
     for url, oid in oreg.allURLPaths():
+        print
         print 'load url:', url, 'oid:', oid
         r = oreg.load(oid)
         pprint((r, vars(r)))
-        print
+
+        rl = getattr(r, 'recurse', None)
+        if rl is not None:
+            print
+            print 'recurse:', list(rl)
+            pprint((r, vars(r)))
+            print
     print
     oreg.close()
 
 if __name__=='__main__':
-    saveObjs('dbtest.sl3')
-    loadObjs('dbtest.sl3')
+    saveObjs('test.db')
+    loadObjs('test.db')
 
