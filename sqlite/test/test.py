@@ -24,8 +24,8 @@ class TestDict(dict):
 #~ Main 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-if __name__=='__main__':
-    oreg = SQLObjectRegistry('dbtest.sl3')
+def saveObjs(filename):
+    oreg = SQLObjectRegistry(filename)
     oreg.store(None)
     oreg.store(True)
     oreg.store(False)
@@ -61,14 +61,17 @@ if __name__=='__main__':
     mobj.testDict = tdict
     mobj.testList = tlist
     mobj.mobj = mobj
+    mobj.recurse = [1, mobj, [2, mobj, [3, mobj, [4, mobj]]]]
     mobj.name = 'lala'
     oreg.store(mobj, 'mobj')
 
     wr = weakref.ref(mobj)
     oreg.store(wr)
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    oreg.close()
 
+def loadObjs(filename):
+    oreg = SQLObjectRegistry(filename)
     print
     for url, oid in oreg.allURLPaths():
         print 'load url:', url, 'oid:', oid
@@ -76,4 +79,9 @@ if __name__=='__main__':
         pprint((r, vars(r)))
         print
     print
+    oreg.close()
+
+if __name__=='__main__':
+    saveObjs('dbtest.sl3')
+    loadObjs('dbtest.sl3')
 

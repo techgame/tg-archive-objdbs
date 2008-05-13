@@ -33,20 +33,22 @@ class ObjectSerializer(object):
         raise RuntimeError("Tried to store storage mechanism: %r" % (self,))
 
     def oidForObj(self, obj, create=True):
-        try:
-            oid = self.objToOids.get(obj)
-        except TypeError:
-            oid = self.objToOids.get(id(obj))
+        otype = self.otypeForObj(obj)
+        try: okey = hash(obj)
+        except TypeError: 
+            okey = id(obj)
+
+        oid = self.objToOids.get((otype, okey))
 
         if oid is None and create:
             oid = self._storeObject(obj)
         return oid
 
-    def setOidForObj(self, obj, oid):
-        try:
-            self.objToOids[obj] = oid
-        except TypeError:
-            self.objToOids[id(obj)] = oid
+    def setOidForObj(self, obj, otype, oid):
+        try: okey = hash(obj)
+        except TypeError: 
+            okey = id(obj)
+        self.objToOids[otype, okey] = oid
         self.oidToObj[oid] = obj
         return oid
 
@@ -189,7 +191,7 @@ class ObjectSerializer(object):
             otype = self.otypeForObj(obj)
         oid = self.oidForObj(obj, False)
         oid = self.stg.setOid(obj, oid, stg_kind, otype)
-        return self.setOidForObj(obj, oid)
+        return self.setOidForObj(obj, otype, oid)
 
     def _stg_setOrdered(self, oid, listitems):
         oidOf = self.oidForObj
@@ -211,5 +213,5 @@ class ObjectSerializer(object):
         if value_type is None:
             value_type = type(value).__name__
         oid = self.stg.setLiteral(value, hash(value), value_type, stg_kind)
-        return self.setOidForObj(value, oid)
+        return self.setOidForObj(value, value_type, oid)
 
