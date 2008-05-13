@@ -31,8 +31,13 @@ class SQLObjectRegistry(object):
 
     def _initFileStorage(self, filename):
         self.db = sqlite3.connect(filename)
-        self.db.isolation_level = None
+        self.db.isolation_level = "DEFERRED"
 
+        #self.db.execute('PRAGMA cache_size = 20000;')
+        self.db.execute('PRAGMA locking_mode = EXCLUSIVE;')
+        #self.db.execute('PRAGMA synchronous = OFF;')
+
+        self.cur = self.db.cursor()
         self.stg = SQLStorage(self.db, 1000)
         self._save = ObjectSerializer(self)
         self._load = ObjectDeserializer(self)

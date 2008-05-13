@@ -26,8 +26,9 @@ class SQLStorage(object):
         _sql.createOidReferenceViews,
         ]
 
-    def __init__(self, dbConn, nextOid=None):
-        self.cursor = dbConn.cursor()
+    def __init__(self, db, nextOid=None):
+        self.db = db
+        self.cursor = db.cursor()
         if nextOid is not None:
             self.nextOid = nextOid
 
@@ -36,6 +37,9 @@ class SQLStorage(object):
     def initialize(self):
         for sql in self._sql_init:
             self.cursor.executescript(sql)
+
+    def commit(self):
+        return self.db.commit()
 
     def __getstate__(self):
         raise RuntimeError("Tried to store storage mechanism: %r" % (self,))

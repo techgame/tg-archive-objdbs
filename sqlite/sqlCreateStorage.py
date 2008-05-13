@@ -30,6 +30,8 @@ create table if not exists lists (
     oid_host integer,
     oid_value integer
 );
+create index if not exists lists_oid_host
+    on lists (oid_host);
 
 create table if not exists mappings (
     tidx integer primary key,
@@ -37,6 +39,8 @@ create table if not exists mappings (
     oid_key integer,
     oid_value integer
 );
+create index if not exists mappings_oid_host
+    on mappings (oid_host);
 """
 
 # Cross database concerns 
