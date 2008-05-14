@@ -49,16 +49,15 @@ class SQLStorage(object):
         self._metadata = dict(r.fetchall())
 
     def getMetaAttr(self, attr, default=None):
-        r = self._metadata
-        value = r.get(attr, default)
-        print 'get meta attr:', attr, 'value:', repr(value), 'default:', repr(default)
-        return value
+        return self._metadata.get(attr, default)
     def setMetaAttr(self, attr, value):
         r = self._metadata
         if r.get(attr, object()) != value:
             r[attr] = value
-            print 'set meta attr:', attr, 'value:', repr(value)
-            self.cursor.execute('replace into odb_metadata (attr, value) values (?, ?)', (attr, value))
+            self.cursor.execute(
+                'replace into odb_metadata '
+                '  (attr, value) values (?, ?)', 
+                (attr, value))
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
