@@ -75,8 +75,11 @@ class ObjectSerializer(object):
         oid = self._storeObject(obj)
         if urlpath is not None:
             self.stg.setURLPathForOid(urlpath, oid)
-        self.stg.commit()
+        self.commit()
         return oid
+
+    def commit(self):
+        self.stg.commit()
 
     def storeExternal(self, obj):
         return None

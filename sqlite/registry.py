@@ -33,14 +33,12 @@ class SQLObjectRegistry(object):
         self.db = sqlite3.connect(filename)
         self.db.isolation_level = "DEFERRED"
 
-        #self.db.execute('PRAGMA cache_size = 20000;')
-        self.db.execute('PRAGMA locking_mode = EXCLUSIVE;')
-        #self.db.execute('PRAGMA synchronous = OFF;')
-
-        self.cur = self.db.cursor()
-        self.stg = SQLStorage(self.db, 1000)
+        self.stg = SQLStorage(self.db)
         self._save = ObjectSerializer(self)
         self._load = ObjectDeserializer(self)
+
+    def commit(self):
+        self.stg.commit()
 
     def store(self, obj, urlpath=None):
         return self._save.store(obj, urlpath)

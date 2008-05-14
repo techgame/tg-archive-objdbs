@@ -1,4 +1,17 @@
+sqliteSetup = """
+PRAGMA default_cache_size = 4000;
+PRAGMA locking_mode = EXCLUSIVE;
+PRAGMA synchronous = NORMAL;
+PRAGMA encoding = "UTF-8"; 
+"""
+
 createLookupTables = """
+create table if not exists odb_metadata (
+    attr TEXT,
+    value,
+    primary key (attr) on conflict replace
+);
+
 create table if not exists oid_lookup (
     oid integer,
     stg_kind text not null,

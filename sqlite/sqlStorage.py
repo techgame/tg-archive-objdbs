@@ -19,6 +19,7 @@ from . import sqlCreateStorage as _sql
 class SQLStorage(object):
     nextOid = None
     _sql_init = [
+        _sql.sqliteSetup,
         _sql.createLookupTables,
         _sql.createStorageTables,
         _sql.createExternalTables,
@@ -26,23 +27,46 @@ class SQLStorage(object):
         _sql.createOidReferenceViews,
         ]
 
-    def __init__(self, db, nextOid=None):
+    def __init__(self, db):
         self.db = db
         self.cursor = db.cursor()
-        if nextOid is not None:
-            self.nextOid = nextOid
-
         self.initialize()
+
+    def __getstate__(self):
+        raise RuntimeError("Tried to store storage mechanism: %r" % (self,))
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def initialize(self):
         for sql in self._sql_init:
             self.cursor.executescript(sql)
 
+        self.fetchMetadata()
+        self.nextOid = self.getMetaAttr('nextOid', 1000)
+
+    def fetchMetadata(self):
+        r = self.cursor.execute('select attr, value from odb_metadata')
+        self._metadata = dict(r.fetchall())
+
+    def getMetaAttr(self, attr, default=None):
+        r = self._metadata
+        value = r.get(attr, default)
+        print 'get meta attr:', attr, 'value:', repr(value), 'default:', repr(default)
+        return value
+    def setMetaAttr(self, attr, value):
+        r = self._metadata
+        if r.get(attr, object()) != value:
+            r[attr] = value
+            print 'set meta attr:', attr, 'value:', repr(value)
+            self.cursor.execute('replace into odb_metadata (attr, value) values (?, ?)', (attr, value))
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
     def commit(self):
+        self.setMetaAttr('nextOid', self.nextOid)
         return self.db.commit()
 
-    def __getstate__(self):
-        raise RuntimeError("Tried to store storage mechanism: %r" % (self,))
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def allOids(self):
         r = self.cursor.execute(

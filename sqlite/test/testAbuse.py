@@ -55,7 +55,7 @@ if __name__=='__main__':
     #dbname = ':memory:'
     print
     print 'creating tree'
-    tree = list(objTree(2, 0, 14))
+    tree = list(objTree(2, 0, 12))
     print 'tree nodes:', total
     print
 
