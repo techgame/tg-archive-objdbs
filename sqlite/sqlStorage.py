@@ -10,6 +10,7 @@
 #~ Imports 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+import uuid
 from . import sqlCreateStorage as _sql
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -20,6 +21,7 @@ class SQLStorage(object):
     nextOid = None
     _sql_init = [
         _sql.sqliteSetup,
+        _sql.createMetaTables,
         _sql.createLookupTables,
         _sql.createStorageTables,
         _sql.createExternalTables,
@@ -43,6 +45,7 @@ class SQLStorage(object):
 
         self.fetchMetadata()
         self.nextOid = self.getMetaAttr('nextOid', 1000)
+        self.newSession()
 
     def fetchMetadata(self):
         r = self.cursor.execute('select attr, value from odb_metadata')
@@ -58,6 +61,22 @@ class SQLStorage(object):
                 'replace into odb_metadata '
                 '  (attr, value) values (?, ?)', 
                 (attr, value))
+
+    def getDbid(self):
+        return self.getMetaAttr('dbid')
+    def setDbid(self, dbid):
+        return self.setMetaAttr('dbid', dbid)
+    dbid = property(getDbid, setDbid)
+
+    def newSession(self):
+        self.commit()
+
+        self.session = uuid.uuid4() # new random uuid
+        r = self.cursor.execute(
+            'insert into odb_sessions values (NULL, ?, ?)',
+            (str(self.session), self.nextOid))
+        self.ssid = r.lastrowid
+        self.commit()
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -94,8 +113,8 @@ class SQLStorage(object):
             raise ValueError("Object storage stg_kind must be specified")
 
         self.cursor.execute(
-            'replace into oid_lookup (oid, stg_kind, otype) '
-            '  values(?, ?, ?)', (oid, stg_kind, otype))
+            'replace into oid_lookup (oid, stg_kind, otype, ssid) '
+            '  values(?, ?, ?, ?)', (oid, stg_kind, otype, self.ssid))
         return oid
 
     def allURLPaths(self, incOid=True):
@@ -116,15 +135,16 @@ class SQLStorage(object):
 
     def setURLPathForOid(self, urlpath, oid):
         self.cursor.execute(
-            "replace into exports (urlpath, oid_ref)"
-            "  values(?,?)", (urlpath, oid))
+            "replace into exports (urlpath, oid_ref, ssid)"
+            "  values(?,?,?)", (urlpath, oid, self.ssid))
 
     def findLiteral(self, value, value_hash, value_type):
         r = self.cursor.execute(
             'select oid from literals '
             '  where value=? and value_hash=? and value_type=?',
-            (value, value_type, value_hash))
-        return r.fetchone()
+            (value, value_hash, value_type))
+        r = r.fetchone()
+        return r[0] if r else None
 
     def getLiteralAndType(self, oid):
         r = self.cursor.execute(
@@ -146,8 +166,8 @@ class SQLStorage(object):
 
         oid = self.setOid(value, None, stg_kind, value_type)
         self.cursor.execute(
-            'insert into literals (oid, value, value_type, value_hash)'
-            '  values(?, ?, ?, ?)', (oid, value, value_type, value_hash))
+            'insert into literals (oid, value, value_type, value_hash, ssid)'
+            '  values(?, ?, ?, ?, ?)', (oid, value, value_type, value_hash, self.ssid))
         return oid
 
     def getWeakref(self, oid):
@@ -157,8 +177,8 @@ class SQLStorage(object):
         return r.fetchone()
     def setWeakref(self, oid, oid_ref):
         self.cursor.execute(
-            'insert into weakrefs (oid_host, oid_ref)'
-            '  values(?, ?)', (oid, oid_ref))
+            'insert into weakrefs (oid_host, oid_ref, ssid)'
+            '  values(?, ?, ?)', (oid, oid_ref, self.ssid))
         return oid
 
     def getOrdered(self, oid):
@@ -172,9 +192,10 @@ class SQLStorage(object):
             'delete from lists '
             '  where oid_host=?', (oid,))
 
+        ssid = self.ssid
         self.cursor.executemany(
-            'insert into lists values(NULL, ?, ?)',
-            ((oid, oid_v) for oid_v in valueOids))
+            'insert into lists values(NULL, ?, ?, ?)',
+            ((oid, oid_v, ssid) for oid_v in valueOids))
         return oid
 
     def getMapping(self, oid):
@@ -189,8 +210,9 @@ class SQLStorage(object):
             'delete from mappings '
             '  where oid_host=?', (oid,))
 
+        ssid = self.ssid
         self.cursor.executemany(
-            'insert into mappings values(NULL, ?, ?, ?)',
-            ((oid, oid_k, oid_v) for oid_k, oid_v in itemOids))
+            'insert into mappings values(NULL, ?, ?, ?, ?)',
+            ((oid, oid_k, oid_v, ssid) for oid_k, oid_v in itemOids))
         return oid
 

@@ -1,22 +1,30 @@
 sqliteSetup = """
-PRAGMA default_cache_size = 4000;
 PRAGMA locking_mode = EXCLUSIVE;
 PRAGMA synchronous = NORMAL;
 PRAGMA encoding = "UTF-8"; 
 """
 
-createLookupTables = """
+createMetaTables = """
 create table if not exists odb_metadata (
     attr TEXT,
     value,
     primary key (attr) on conflict replace
 );
 
+create table if not exists odb_sessions (
+    ssid integer primary key,
+    session TEXT,
+    nextOid integer
+);
+"""
+
+createLookupTables = """
 create table if not exists oid_lookup (
     oid integer,
     stg_kind text not null,
     otype text not null,
 
+    ssid integer,
     primary key (oid) on conflict replace
 );
 """
@@ -28,6 +36,8 @@ create table if not exists literals (
     value_hash integer,
     value_type text,
 
+    ssid integer,
+
     primary key (oid) on conflict replace
 );
 
@@ -35,13 +45,15 @@ create table if not exists weakrefs (
     oid_host integer,
     oid_ref integer,
 
+    ssid integer,
     primary key (oid_host) on conflict replace
 );
 
 create table if not exists lists (
     tidx integer primary key,
     oid_host integer,
-    oid_value integer
+    oid_value integer,
+    ssid integer
 );
 create index if not exists lists_oid_host
     on lists (oid_host);
@@ -50,7 +62,8 @@ create table if not exists mappings (
     tidx integer primary key,
     oid_host integer,
     oid_key integer,
-    oid_value integer
+    oid_value integer,
+    ssid integer
 );
 create index if not exists mappings_oid_host
     on mappings (oid_host);
@@ -62,12 +75,16 @@ create table if not exists externals (
     oid integer,
     url TEXT,
 
+    ssid integer,
+
     primary key (oid) on conflict replace
 );
 
 create table if not exists exports (
     urlpath TEXT,
     oid_ref integer,
+
+    ssid integer,
 
     primary key (urlpath) on conflict replace
 );

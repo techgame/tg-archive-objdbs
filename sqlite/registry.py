@@ -40,6 +40,10 @@ class SQLObjectRegistry(object):
     def commit(self):
         self.stg.commit()
 
+    @property
+    def nextOid(self):
+        return self.stg.nextOid
+
     def store(self, obj, urlpath=None):
         return self._save.store(obj, urlpath)
 

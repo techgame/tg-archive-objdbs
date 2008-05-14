@@ -44,18 +44,20 @@ def saveObjs(filename, tree):
     oreg = SQLObjectRegistry(filename)
     oreg.store(tree, 'root')
     oreg.close()
+    return oreg.nextOid
 
 def loadObjs(filename):
     oreg = SQLObjectRegistry(filename)
     root = oreg.load('root')
     oreg.close()
+    return oreg.nextOid
 
 if __name__=='__main__':
-    dbname = 'testAbuse.db'
     #dbname = ':memory:'
+    dbname = 'testAbuse.db'
     print
     print 'creating tree'
-    tree = list(objTree(2, 0, 12))
+    tree = list(objTree(4, 0, 5))
     print 'tree nodes:', total
     print
 
@@ -71,9 +73,9 @@ if __name__=='__main__':
     print
     print 'saving'
     s = time.time()
-    saveObjs(dbname, tree)
+    nextOid = saveObjs(dbname, tree)
     d = time.time() - s
-    print 'done', d
+    print 'done', d, nextOid
     print
 
     #print
