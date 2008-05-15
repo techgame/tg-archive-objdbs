@@ -145,19 +145,15 @@ create view if not exists exports_lookup as
 
 # Views for determining referenced objects - does not handle self-refs
 createOidReferenceViews = """
-create view if not exists oid_references as 
-    select oid_value as oid from lists 
-  union 
-    select oid_key as oid from mappings 
-  union
-    select oid_value as oid from mappings 
-  union 
-    select oid_ref as oid from exports 
-  sort on oid;
+create view if not exists oids as
+  select oid from oid_lookup;
+"""
 
-create view if not exists oid_unreferenced as 
-    select oid from oid_lookup
-        where oid >= 1000
-        except select oid from oid_references;
+deleteUnreferenced = """
+delete from literals where oid not in oids;
+delete from weakrefs where oid_host not in oids;
+delete from lists where oid_host not in oids;
+delete from mappings where oid_host not in oids;
+delete from externals where oid not in oids;
 """
 

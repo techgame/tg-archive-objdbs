@@ -82,7 +82,7 @@ class SQLStorage(object):
 
     def commit(self):
         self.setMetaAttr('nextOid', self.nextOid)
-        return self.db.commit()
+        self.db.commit()
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -144,7 +144,8 @@ class SQLStorage(object):
             '  where value=? and value_hash=? and value_type=?',
             (value, value_hash, value_type))
         r = r.fetchone()
-        return r[0] if r else None
+        if r is not None:
+            return r[0]
 
     def getLiteralAndType(self, oid):
         r = self.cursor.execute(
@@ -173,7 +174,7 @@ class SQLStorage(object):
     def getWeakref(self, oid):
         r = self.cursor.execute(
             'select v_oid, v_stg_kind, v_otype from weakrefs_lookup '
-            '  where oid_host=?', (oid,))
+            '  where oid=?', (oid,))
         return r.fetchone()
     def setWeakref(self, oid, oid_ref):
         self.cursor.execute(
@@ -215,4 +216,48 @@ class SQLStorage(object):
             'insert into mappings values(NULL, ?, ?, ?, ?)',
             ((oid, oid_k, oid_v, ssid) for oid_k, oid_v in itemOids))
         return oid
+
+    def gc(self):
+        oidOut = self.oidReachability()
+        if not oidOut:
+            return
+
+        r = self.cursor
+        r.executemany(
+            'delete from oid_lookup where oid=?',
+            ((oid,) for oid in oidOut))
+        r.executescript(_sql.deleteUnreferenced)
+
+        self.db.commit()
+
+    def oidReachability(self):
+        entries = []
+        r = self.cursor
+        entries.extend(r.execute(
+            'select 0, oid_ref from exports '))
+        entries.extend(r.execute(
+            'select oid_host, oid_value from lists '))
+        entries.extend(r.execute(
+            'select oid_host, oid_key from mappings '))
+        entries.extend(r.execute(
+            'select oid_host, oid_value from mappings '))
+
+        result = set(v for e in entries for v in e)
+        hashtable = dict((oid, set()) for oid in result)
+        for oh, ov in entries:
+            hashtable[oh].add(ov)
+
+        result.remove(0)
+        working = hashtable[0]
+        result -= working
+
+        while working:
+            oid = working.pop()
+            level = hashtable.pop(oid, None)
+            if level:
+                level &= result
+                working.update(level)
+                result -= level
+
+        return result
 

@@ -37,12 +37,17 @@ class SQLObjectRegistry(object):
         self._save = ObjectSerializer(self)
         self._load = ObjectDeserializer(self)
 
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
     def commit(self):
         self.stg.commit()
-
+    def gc(self):
+        self.stg.gc()
     @property
     def nextOid(self):
         return self.stg.nextOid
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def store(self, obj, urlpath=None):
         return self._save.store(obj, urlpath)

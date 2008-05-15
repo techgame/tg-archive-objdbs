@@ -40,47 +40,39 @@ def objTree(n, d, depth):
             obj.extend(objTree(n, d+1, depth))
         yield obj
 
-def saveObjs(filename, tree):
+def saveObjs(filename, tree, tname='root'):
     oreg = SQLObjectRegistry(filename)
-    oreg.store(tree, 'root')
+    oidStart = oreg.nextOid
+    oreg.store(tree, tname)
+    oidEnd = oreg.nextOid
+    #oreg.gc()
     oreg.close()
-    return oreg.nextOid
+    return oidStart, oidEnd
 
 def loadObjs(filename):
     oreg = SQLObjectRegistry(filename)
+    oidStart = oreg.nextOid
     root = oreg.load('root')
+    oidEnd = oreg.nextOid
     oreg.close()
-    return oreg.nextOid
+    return oidStart, oidEnd
 
 if __name__=='__main__':
-    #dbname = ':memory:'
+    dbname = ':memory:'
     dbname = 'testAbuse.db'
-    print
-    print 'creating tree'
-    tree = list(objTree(4, 0, 5))
-    print 'tree nodes:', total
-    print
 
-    #print
-    #print 'pickling'
-    #s = time.time()
-    #r = pickle.dumps(tree, 2)
-    #r = len(r)
-    #d = time.time() - s
-    #print 'done', d, r
-    #print
+    for loop in range(5):
+        print 'creating tree:',
+        tree = list(objTree(4, 0, 8))
+        print total
 
-    print
-    print 'saving'
-    s = time.time()
-    nextOid = saveObjs(dbname, tree)
-    d = time.time() - s
-    print 'done', d, nextOid
-    print
-
-    #print
-    #print 'loading'
-    #loadObjs(dbname)
-    #print 'done'
-    #print
+        print 'saving'
+        s = time.time()
+        oidStart, oidEnd = saveObjs(dbname, tree, 'root-%s'%(loop%3,))
+        d = time.time() - s
+        oidDelta = oidEnd - oidStart
+        print 'done:', d, 
+        print 'oidDelta:', oidDelta, oidDelta/d
+        #print 'oidEnd:', oidEnd
+        print
 
