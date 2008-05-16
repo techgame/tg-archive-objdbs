@@ -224,12 +224,14 @@ class SQLStorage(object):
             ((oid, oid_k, oid_v, ssid) for oid_k, oid_v in itemOids))
         return oid
 
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #~ Garbage collection
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
     def gcInit(self):
-        r = self.cursor
         self.gcRestart()
 
     def gcRestart(self):
-        #print 'gcRestart:'
         r = self.cursor
         r.execute('''
             delete from oidGraphMembers;''')
@@ -237,10 +239,10 @@ class SQLStorage(object):
             insert into oidGraphMembers 
                 select oid_ref from exports;''')
 
-    def gc(self):
+    def gc(self, reap=True):
         r = self.cursor
         delta = self.gcIter(r)
-        if not delta:
+        if not delta and reap:
             return self.gcReap(r)
 
     def gcFlush(self):
@@ -249,7 +251,6 @@ class SQLStorage(object):
         while r is None:
             r = self.gc()
             l += 1
-        #print 'gcFlush loops:', l, 'removed:', n
         return r
 
     def gcCollect(self):
@@ -277,59 +278,15 @@ class SQLStorage(object):
         self.db.commit()
         count, = r.execute('''select count(oid) from oidGraphMembers;''').fetchone()
         exports, = r.execute('''select count(oid_ref) from exports;''').fetchone()
-        if count <= exports:
-            self.gcRestart()
-            return 0, count
 
-        r.execute('delete from oid_lookup where oid not in oidGraphMembers')
-        n = max(0, r.rowcount)
-        if not n: 
-            return 0, count
+        nCollected = 0
+        if count > exports:
+            r.execute('delete from oid_lookup where oid not in oidGraphMembers')
+            nCollected = max(0, r.rowcount)
+            if nCollected: 
+                r.executescript(_sql.deleteGarbage)
+                self.db.commit()
 
-        r.executescript(_sql.deleteGarbage)
-        self.db.commit()
-        return n, count
-
-    if 0:
-        def gc_old(self):
-            oidOut = self.oidReachability()
-            if not oidOut:
-                return
-
-            r = self.cursor
-            r.executemany(
-                'delete from oid_lookup where oid=?',
-                ((oid,) for oid in oidOut))
-            r.executescript(_sql.deleteUnreferenced)
-
-            self.db.commit()
-
-        def oidReachability(self):
-            entries = []
-            r = self.cursor
-            entries.extend(r.execute(
-                'select 0, oid_ref from exports '))
-            entries.extend(r.execute(
-                'select oid_host, oid_key from mappings where oid_key!=NULL'))
-            entries.extend(r.execute(
-                'select oid_host, oid_value from mappings '))
-
-            result = set(v for e in entries for v in e)
-            hashtable = dict((oid, set()) for oid in result)
-            for oh, ov in entries:
-                hashtable[oh].add(ov)
-
-            result.remove(0)
-            working = hashtable[0]
-            result -= working
-
-            while working:
-                oid = working.pop()
-                level = hashtable.pop(oid, None)
-                if level:
-                    level &= result
-                    working.update(level)
-                    result -= level
-
-            return result
+        self.gcRestart()
+        return nCollected, count
 

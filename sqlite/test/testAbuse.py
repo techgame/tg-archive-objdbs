@@ -61,7 +61,7 @@ if __name__=='__main__':
     print 'creating root...'
     root = {
         'ltree': list(objLTree(2, 0, 10)),
-        'dtree': dict(objDTree(2, 0, 10)),
+        'dtree': dict(objDTree(3, 0, 8)),
         }
     print 'created root:', total
 
@@ -69,7 +69,7 @@ if __name__=='__main__':
     #oreg = SQLObjectRegistry(dbname)
     oreg = None
 
-    for loop in xrange(2):
+    for loop in xrange(3):
         if oreg is not None:
             oreg.close()
 
