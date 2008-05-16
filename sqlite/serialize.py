@@ -18,6 +18,9 @@ import pickle
 #~ Definitions 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+class linear_dict(list):
+    __slots__ = ()
+
 class ObjectSerializer(object):
     _reduceProtocol = 2
     dbid = None
@@ -26,6 +29,7 @@ class ObjectSerializer(object):
     oidToObj = None
 
     def __init__(self, registry):
+        self._deferred = []
         self.dbid = registry.dbid
         self.stg = registry.stg
         self.objToOids = registry.objToOids
@@ -56,6 +60,15 @@ class ObjectSerializer(object):
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+    def store(self, obj, urlPath=None):
+        oid = self._storeObject(obj)
+        if urlPath is not None:
+            self.oidToObj[urlPath] = obj
+            self.stg.setURLPathForOid(urlPath, oid)
+
+        self.commit()
+        return oid
+
     def _storeObject(self, obj):
         oid = self.storeExternal(obj)
         if oid is not None:
@@ -71,22 +84,27 @@ class ObjectSerializer(object):
 
         raise Exception("Unable to store object", obj)
 
-    def store(self, obj, urlpath=None):
-        oid = self._storeObject(obj)
-        if urlpath is not None:
-            self.stg.setURLPathForOid(urlpath, oid)
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    def commit(self):
+        self._storeDeferred()
         self.stg.commit()
-        return oid
 
-    def storeExternal(self, obj):
-        return None
+    def _storeDeferred(self):
+        work = self._deferred
+        while work:
+            fn, args = work.pop()
+            fn(*args)
 
-    def storeByReduce(self, obj):
-        return self._storeAs_reduction(obj, *self._reduceObj(obj))
+    def _defer(self, fn, *args):
+        self._deferred.append((fn, args))
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #~ Storage by Type
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    def storeExternal(self, obj):
+        return None
 
     _storeByTypeMap = {}
     def storeByType(self, obj):
@@ -119,17 +137,26 @@ class ObjectSerializer(object):
             return oid
 
         oid = self._stg_oid(obj, 'tuple')
-        return self._stg_setOrdered(oid, list(obj))
+        self._defer(self._stg_setOrdered, oid, obj)
+        return oid
 
     @regType([list, set, frozenset])
-    def _storeAs_orderedValue(self, obj):
+    def _storeAs_ordered(self, obj):
         oid = self._stg_oid(obj, 'list')
-        return self._stg_setOrdered(oid, list(obj))
+        self._defer(self._stg_setOrdered, oid, obj)
+        return oid
 
     @regType([dict])
-    def _storeAs_mappingValue(self, obj):
+    def _storeAs_mapping(self, obj):
         oid = self._stg_oid(obj, 'map')
-        return self._stg_setMapping(oid, obj.iteritems())
+        self._defer(self._stg_setMapping, oid, obj.iteritems())
+        return oid
+
+    @regType([linear_dict])
+    def _storeAs_linearMapping(self, obj):
+        oid = self._stg_oid(obj, 'map', 'dict')
+        self._defer(self._stg_setMapping, oid, obj)
+        return oid
 
     @regType([weakref.ref])
     def _storeAs_weakref(self, obj):
@@ -141,35 +168,18 @@ class ObjectSerializer(object):
     del regType
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #~ Storage by Reduction
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    def _storeAs_reduction(self, obj, fn, newArgs, state=None, listitems=None, dictitems=None):
-        if fn.__name__ != '__newobj__':
-            raise NotImplementedError("Outside support for reduce protocol 2")
-
-        klass = newArgs[0]
-        if klass is not type(obj):
-            raise Exception("Reduction class is not identical to the type of obj")
-
-        args = newArgs[1:]
-        if args and args[0] is obj:
-            # caution!
-            raise Exception("Reduction directly includes obj instance!")
-
-        otype = self.otypeForObj(obj)
-        reduction = [
-            #('ns', otype),
-            ('args', args), ('state', state),
-            ('listitems', listitems and list(listitems)),
-            ('dictitems', dictitems and dict(dictitems))]
-        reduction = [(k,v) for k,v in reduction if v]
-
-        oid = self._stg_oid(obj, 'obj', otype)
-        self._stg_setMapping(oid, reduction)
+    def storeByReduce(self, obj):
+        oid = self._stg_oid(obj, 'obj')
+        self._defer(self._storeAs_reduction, oid, obj)
         return oid
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    #~ Utilites
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def _storeAs_reduction(self, oid, obj):
+        reduction = self._asReductionMap(*self._reduceObj(obj))
+        self._stg_setMapping(oid, reduction)
+        return oid
 
     def _reduceObj(self, obj):
         fn = getattr(obj, '__reduce_ex__', None)
@@ -181,6 +191,21 @@ class ObjectSerializer(object):
             return fn()
 
         raise Exception("Cannot store %r object: %r" % (obj.__class__.__name__, obj))
+
+    def _asReductionMap(self, fn, newArgs, state=None, listitems=None, dictitems=None):
+        if fn.__name__ != '__newobj__':
+            raise NotImplementedError("Outside support for reduce protocol 2")
+
+        reduction = [
+            ('args', newArgs[1:]), ('state', state),
+            ('listitems', listitems and list(listitems)),
+            ('dictitems', dictitems and linear_dict(dictitems))]
+        reduction = [(k,v) for k,v in reduction if v]
+        return reduction
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #~ Utilites
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def otypeForObj(self, obj):
         klass = obj.__class__

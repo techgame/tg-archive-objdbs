@@ -43,6 +43,7 @@ def objLTree(n, d, depth):
         obj = LNode(i, d)
         if d+1 < depth-1:
             obj.extend(objLTree(n, d+1, depth))
+        else: obj.extend((i,d))
         yield obj
 
 def objDTree(n, d, depth):
@@ -52,6 +53,7 @@ def objDTree(n, d, depth):
         obj = DNode(i, d)
         if d+1 < depth-1:
             obj.update(objDTree(n, d+1, depth))
+        else: obj[i] = (i,d)
         yield i, obj
 
 if __name__=='__main__':
@@ -61,15 +63,17 @@ if __name__=='__main__':
     print 'creating root...'
     root = {
         'ltree': list(objLTree(2, 0, 10)),
-        'dtree': dict(objDTree(3, 0, 8)),
+        'dtree': dict(objDTree(1, 0, 10)),
         }
     print 'created root:', total
 
     print 'initial opening'
-    #oreg = SQLObjectRegistry(dbname)
     oreg = None
+    oreg = SQLObjectRegistry(dbname)
+    r = oreg.load('root-0', 10)
+    #print r
 
-    for loop in xrange(3):
+    for loop in xrange(4):
         if oreg is not None:
             oreg.close()
 
@@ -97,13 +101,19 @@ if __name__=='__main__':
 
         print
 
-    if oreg is not None:
+    if 1 and oreg is not None:
         tstart = time.time()
         n,c = oreg.stg.gcCollect()
         tdelta = (time.time() - tstart) or 1
         print 'gcCollect seconds: %1.1f,  oid/sec: %.0f,  cull: %s rooted: %s ' % (tdelta, (n+c)/tdelta, n, c)
-        oreg.commit()
+
+    if 1 and oreg is not None:
+        tstart = time.time()
+        n,c = oreg.stg.gcCollect()
+        tdelta = (time.time() - tstart) or 1
+        print 'gcCollect seconds: %1.1f,  oid/sec: %.0f,  cull: %s rooted: %s ' % (tdelta, (n+c)/tdelta, n, c)
 
     if oreg is not None:
+        oreg.commit()
         oreg.close()
 

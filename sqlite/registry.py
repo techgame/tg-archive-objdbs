@@ -52,8 +52,8 @@ class SQLObjectRegistry(object):
     def store(self, obj, urlpath=None):
         return self._save.store(obj, urlpath)
 
-    def load(self, oid):
-        return self._load.loadOid(oid)
+    def load(self, oid, depth=1):
+        return self._load.loadOid(oid, depth)
 
     def allOids(self):
         return self.stg.allOids()

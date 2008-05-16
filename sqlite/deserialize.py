@@ -39,7 +39,7 @@ class ObjectDeserializer(object):
 
     def loadOid(self, oid, depth=1):
         if isinstance(oid, basestring):
-            return self.loadUrlPath(oid)
+            return self.loadUrlPath(oid, depth)
 
         stg_kind, otype = self.stg.getOidInfo(oid)
         result = self.loadEntry((oid, stg_kind, otype), depth)
@@ -52,6 +52,9 @@ class ObjectDeserializer(object):
             return result
 
         entry = self.stg.getAtURLPath(urlPath)
+        if entry is None:
+            return None
+
         result = self.loadEntry(entry, depth)
         self.oidToObj[urlPath] = result
         return result
@@ -70,8 +73,9 @@ class ObjectDeserializer(object):
             return result
 
         fn, allowProxy = self._loadByKindMap[stg_kind]
-        if depth == 0 and allowProxy:
-            return self.Proxy(self, oid)
+        if allowProxy:
+            if depth == 0:
+                return self.Proxy(self, oid)
 
         result = fn(self, oid, stg_kind, otype, depth-1)
         return result
