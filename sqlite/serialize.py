@@ -23,13 +23,9 @@ class linear_dict(list):
 
 class ObjectSerializer(object):
     _reduceProtocol = 2
-    dbid = None
-    stg = None
-    objToOids = None
-    oidToObj = None
 
     def __init__(self, registry):
-        self._deferred = []
+        self._deferredStores = []
         self.dbid = registry.dbid
         self.stg = registry.stg
         self.objToOids = registry.objToOids
@@ -55,7 +51,7 @@ class ObjectSerializer(object):
         except TypeError: 
             okey = id(obj)
         self.objToOids[otype, okey] = oid
-        self.oidToObj[oid] = obj
+        self.oidToObj.add(oid, obj)
         return oid
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -63,7 +59,7 @@ class ObjectSerializer(object):
     def store(self, obj, urlPath=None):
         oid = self._storeObject(obj)
         if urlPath is not None:
-            self.oidToObj[urlPath] = obj
+            self.oidToObj.add(urlPath, obj)
             self.stg.setURLPathForOid(urlPath, oid)
 
         self.commit()
@@ -91,13 +87,13 @@ class ObjectSerializer(object):
         self.stg.commit()
 
     def _storeDeferred(self):
-        work = self._deferred
+        work = self._deferredStores
         while work:
             fn, args = work.pop()
             fn(*args)
 
     def _defer(self, fn, *args):
-        self._deferred.append((fn, args))
+        self._deferredStores.append((fn, args))
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #~ Storage by Type
@@ -120,7 +116,11 @@ class ObjectSerializer(object):
             return fn
         return registerFn
 
-    @regType([type(None), bool, int, float, str, unicode])
+    @regType([type(None)])
+    def _storeAs_noneValue(self, value):
+        return self.stg.setOid(0, 'null', '')
+
+    @regType([bool, int, float, str, unicode])
     def _storeAs_literalValue(self, value):
         return self._stg_setLiteral(value, None, 'lit')
 
@@ -218,7 +218,7 @@ class ObjectSerializer(object):
         if otype is None:
             otype = self.otypeForObj(obj)
         oid = self.oidForObj(obj, False)
-        oid = self.stg.setOid(obj, oid, stg_kind, otype)
+        oid = self.stg.setOid(oid, stg_kind, otype)
         return self.setOidForObj(obj, otype, oid)
 
     def _stg_setOrdered(self, oid, listitems):

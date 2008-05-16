@@ -10,7 +10,9 @@
 #~ Imports 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+import weakref
 import sqlite3
+
 from serialize import ObjectSerializer
 from deserialize import ObjectDeserializer
 from sqlStorage import SQLStorage
@@ -19,11 +21,25 @@ from sqlStorage import SQLStorage
 #~ Definitions 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+class OidMapping(dict):
+    def __init__(self):
+        self._woids = weakref.WeakValueDictionary()
+
+    def __missing__(self, oid):
+        return self._woids.get(oid, None)
+
+    def add(self, oid, obj):
+        try:
+            self._woids[oid] = obj
+        except TypeError:
+            self[oid] = obj
+
+
 class SQLObjectRegistry(object):
     def __init__(self, filename, dbid=None):
         self.dbid = dbid or filename
         self.objToOids = {}
-        self.oidToObj = {}
+        self.oidToObj = OidMapping()
         self._initFileStorage(filename)
 
     def __getstate__(self):
@@ -62,5 +78,15 @@ class SQLObjectRegistry(object):
         return self.stg.allURLPaths()
 
     def close(self):
+        self.objToOids.clear()
+        del self.objToOids
+
+        self.oidToObj.clear()
+        del self.oidToObj
+
+        self.stg.close()
+        del self.stg
+
         self.db.close()
+        del self.db
 

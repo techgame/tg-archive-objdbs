@@ -12,21 +12,18 @@
 
 import weakref
 import pickle 
-from .proxy import ObjOidProxy
+from .proxy import ObjOidRef
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~ Definitions 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class ObjectDeserializer(object):
-    _reduceProtocol = 2
-    dbid = None
-    stg = None
-    objToOids = None
-    oidToObj = None
-    Proxy = ObjOidProxy
+    OidRef = ObjOidRef
 
     def __init__(self, registry):
+        self._transitiveOids = set()
+        self._deferredRefs = {}
         self.dbid = registry.dbid
         self.stg = registry.stg
         self.objToOids = registry.objToOids
@@ -43,59 +40,111 @@ class ObjectDeserializer(object):
 
         stg_kind, otype = self.stg.getOidInfo(oid)
         result = self.loadEntry((oid, stg_kind, otype), depth)
+
+        self._loadDeferred()
         return result
 
     def loadUrlPath(self, urlPath, depth=1):
-        unique = object()
-        result = self.oidToObj.get(urlPath, unique)
-        if result is not unique:
-            return result
+        cr = self.oidToObj[urlPath]
+        if cr is not None:
+            return cr
 
         entry = self.stg.getAtURLPath(urlPath)
         if entry is None:
             return None
 
         result = self.loadEntry(entry, depth)
-        self.oidToObj[urlPath] = result
+        self.oidToObj.add(urlPath, result)
+
+        self._loadDeferred()
         return result
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #~ Storage by Type
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+    def _loadDeferred(self):
+        work = self._deferredRefs
+        if not work: return
+
+        loadOidRef = self._loadAs_OidRef
+        while work:
+            oid, (depth, oidRef) = work.popitem()
+            loadOidRef(oidRef, oid, depth)
+
+    def _deferRef(self, oidRef, oid, depth):
+        self._deferredRefs[oid] = depth, oidRef
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
     _loadByKindMap = {}
     def loadEntry(self, entry, depth):
         oid, stg_kind, otype = entry
 
-        unique = object()
-        result = self.oidToObj.get(oid, unique)
-        if result is not unique:
+        if not oid:
+            return None
+
+        cr = self.oidToObj[oid]
+        if cr is not None or not oid:
+            return cr
+
+        fn, useProxy = self._loadByKindMap[stg_kind]
+
+        if oid in self._transitiveOids:
+            # transitive oid references -- return it without registering it
+            return fn(self, oid, stg_kind, otype, depth-1)
+
+        elif useProxy:
+            oidRef = self.OidRef(self, oid)
+            result = oidRef.proxy()
+            self.setOidForObj(result, otype, oid, id(result))
+
+            if depth != 0:
+                self._deferRef(oidRef, oid, depth-1)
+
             return result
 
-        fn, allowProxy = self._loadByKindMap[stg_kind]
-        if allowProxy:
-            if depth == 0:
-                return self.Proxy(self, oid)
+        else:
+            result = fn(self, oid, stg_kind, otype, depth-1)
 
-        result = fn(self, oid, stg_kind, otype, depth-1)
-        return result
+            self.setOidForObj(result, otype, oid)
+            return result
 
-    def regKind(kind, allowProxy, map=_loadByKindMap):
+    def loadOidRef(self, oidRef):
+        oid = oidRef.oid
+        depth, oidRef = self._deferredRefs.pop(oid, (1, oidRef))
+        return self._loadAs_OidRef(oidRef, oid, depth)
+
+    def _loadAs_OidRef(self, oidRef, oid, depth):
+        stg_kind, otype = self.stg.getOidInfo(oid)
+        fn, useProxy = self._loadByKindMap[stg_kind]
+        if useProxy is False:
+            raise RuntimeError("Oid for proxy load is marked as a non-proxy load method")
+
+        ref = fn(self, oid, stg_kind, otype, depth)
+        oidRef.ref = ref
+        return ref
+
+    def regKind(kind, useProxy, map=_loadByKindMap):
         def registerFn(fn):
-            map[kind] = fn, allowProxy
+            map[kind] = fn, useProxy
             return fn
         return registerFn
+
+    @regKind('null', False)
+    def _loadAs_none(self, oid, stg_kind, otype, depth):
+        return None
 
     @regKind('lit', False)
     def _loadAs_literal(self, oid, stg_kind, otype, depth):
         result = self.stg.getLiteral(oid)
         if otype in ('str', 'unicode'):
-            return self._oidLoaded(result, otype, oid)
+            return result
 
         elif not isinstance(result, basestring):
             if otype == 'bool':
                 result = bool(result)
-            return self._oidLoaded(result, otype, oid)
+            return result
 
         else: assert False, (stg_kind, otype, result)
 
@@ -103,7 +152,7 @@ class ObjectDeserializer(object):
     def _loadAs_pickle(self, oid, stg_kind, otype, depth):
         result = self.stg.getLiteral(oid)
         result = pickle.loads(result)
-        return self._oidLoaded(result, otype, oid)
+        return result
 
     @regKind('weakref', False)
     def _loadAs_weakref(self, oid, stg_kind, otype, depth):
@@ -112,12 +161,12 @@ class ObjectDeserializer(object):
             result = weakref.ref(result)
         else: assert False, (stg_kind, otype, result)
 
-        return self._oidLoaded(result, otype, oid)
+        return result
 
     @regKind('tuple', False)
     def _loadAs_tuple(self, oid, stg_kind, otype, depth):
         result = tuple(self._stg_getOrdered(oid, depth))
-        return self._oidLoaded(result, otype, oid)
+        return result
 
     @regKind('list', True)
     def _loadAs_list(self, oid, stg_kind, otype, depth):
@@ -131,7 +180,7 @@ class ObjectDeserializer(object):
 
         else: assert False, (stg_kind, otype, result)
 
-        return self._oidLoaded(result, otype, oid)
+        return result
 
     @regKind('map', True)
     def _loadAs_map(self, oid, stg_kind, otype, depth):
@@ -141,8 +190,11 @@ class ObjectDeserializer(object):
 
         else: assert False, (stg_kind, otype, result)
 
-        return self._oidLoaded(result, otype, oid)
+        return result
 
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #~ Storage by Reduction
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     @regKind('obj', True)
     def _loadAs_obj(self, oid, stg_kind, otype, depth):
@@ -154,30 +206,47 @@ class ObjectDeserializer(object):
 
         args = [load(v, -1) for v in reduction.get('args', ())]
         obj = klass.__new__(klass, *args)
-        self._oidLoaded(obj, otype, oid)
 
         if depth >= 0:
             sdepth = depth + 1
         else: sdepth = -1
 
+        tempOids = self._transitiveOids
         if 'state' in reduction:
-            state = load(reduction['state'], sdepth)
+            rEntry = reduction['state']
+            tempOids.add(rEntry[0])
+
+            state = load(rEntry, sdepth)
             if hasattr(obj, '__setstate__'):
                 obj.__setstate__(state)
-            else: obj.__dict__.update(state)
+            else: 
+                obj.__dict__.update(state)
+            del state
+            tempOids.discard(rEntry[0])
+
 
         if 'listitems' in reduction:
-            listitems = load(reduction['listitems'], sdepth)
+            rEntry = reduction['listitems']
+            tempOids.add(rEntry[0])
+
+            listitems = load(rEntry, sdepth)
             if hasattr(obj, 'extend'):
                 obj.extend(listitems)
             else:
                 for v in listitems:
                     obj.append(v)
+            del listitems
+            tempOids.discard(rEntry[0])
 
         if 'dictitems' in reduction:
-            dictitems = load(reduction['dictitems'], sdepth)
+            rEntry = reduction['dictitems']
+            tempOids.add(rEntry[0])
+
+            dictitems = load(rEntry, sdepth)
             for k, v in dictitems.iteritems():
                 obj[k] = v
+            del dictitems
+            tempOids.discard(rEntry[0])
 
         return obj
 
@@ -187,17 +256,14 @@ class ObjectDeserializer(object):
     #~ Utilities
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    def setOidForObj(self, obj, otype, oid):
-        try: okey = hash(obj)
-        except TypeError: 
-            okey = id(obj)
+    def setOidForObj(self, obj, otype, oid, okey=None):
+        if okey is None:
+            try: okey = hash(obj)
+            except TypeError: 
+                okey = id(obj)
         self.objToOids[otype, okey] = oid
-        self.oidToObj[oid] = obj
+        self.oidToObj.add(oid, obj)
         return oid
-
-    def _oidLoaded(self, obj, otype, oid):
-        self.setOidForObj(obj, otype, oid)
-        return obj
 
     def lookupOType(self, otype):
         path, dot, name = otype.rpartition('.')

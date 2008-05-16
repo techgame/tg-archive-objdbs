@@ -40,6 +40,10 @@ class SQLStorage(object):
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+    def close(self):
+        self.db = None
+        self.cursor = None
+
     def initialize(self):
         for sql in self._sql_init:
             self.cursor.executescript(sql)
@@ -104,7 +108,7 @@ class SQLStorage(object):
             '  from oid_lookup where oid=?', (oid,))
         return r.fetchone()
 
-    def setOid(self, obj, oid, stg_kind, otype):
+    def setOid(self, oid, stg_kind, otype):
         if oid is None:
             oid = self.nextOid
             self.nextOid = oid+1
@@ -170,7 +174,7 @@ class SQLStorage(object):
         if oid is not None:
             return oid
 
-        oid = self.setOid(value, None, stg_kind, value_type)
+        oid = self.setOid(None, stg_kind, value_type)
         self.cursor.execute(
             'insert into literals (oid, value, value_type, value_hash, ssid)'
             '  values(?, ?, ?, ?, ?)', (oid, value, value_type, value_hash, self.ssid))

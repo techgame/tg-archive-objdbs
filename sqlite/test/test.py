@@ -97,6 +97,6 @@ def loadObjs(filename):
     oreg.close()
 
 if __name__=='__main__':
-    saveObjs('test.db')
-    loadObjs('test.db')
+    saveObjs('db_test.db')
+    loadObjs('db_test.db')
 

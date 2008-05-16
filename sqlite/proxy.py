@@ -10,6 +10,7 @@
 #~ Imports 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+import weakref
 from TG.objdbs.objProxy import ProxyComplete
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -17,39 +18,52 @@ from TG.objdbs.objProxy import ProxyComplete
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class ObjOidRef(object):
-    __slots__ = ('host', 'oid', 'obj')
+    __slots__ = ('host', 'oid', 'ref', 'wrproxy')
 
     def __init__(self, host, oid):
         self.host = host
         self.oid = oid
-        self.obj = None
+        self.ref = None
+        self.wrproxy = None
 
     def __repr__(self):
-        if self.obj is None:
+        if self.ref is None:
             return "<ref oid: %r host: %r>" % (self.oid, self.host)
         else: 
-            return "@%r %r" % (self.oid, self.obj)
+            return "@%r %r" % (self.oid, self.ref)
 
-    def __call__(self, autoload=True):
-        obj = self.obj
-        if obj is None and autoload:
-            obj = self.host.loadOid(self.oid)
-            self.obj = obj
+    def proxy(self):
+        pxy = self.wrproxy
+        if pxy is not None:
+            obj = pxy()
+            if obj is not None:
+                return obj
+
+        obj = ObjOidProxy(self)
+        self.wrproxy = weakref.ref(obj, self._collect)
         return obj
+
+    def _collect(self, wr=None):
+        print 'collect:', repr(self)
+    def __call__(self, autoload=True):
+        ref = self.ref
+        if ref is None and autoload:
+            ref = self.host.loadOidRef(self)
+        return ref
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class ObjOidProxy(ProxyComplete):
-    def __init__(self, host, oid):
-        self.__setProxy__(ObjOidRef(host, oid))
+    def __init__(self, oidref):
+        self.__setProxy__(oidref)
 
     def __repr__(self):
         return repr(self.__getProxy__())
+
     def __proxyOrNone__(self):
         objRef = self.__getProxy__()
         if objRef is not None:
-            return objRef(True)
-
+            return objRef(False)
     def __proxy__(self):
         objRef = self.__getProxy__()
         return objRef(True)

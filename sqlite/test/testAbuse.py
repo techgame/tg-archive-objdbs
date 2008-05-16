@@ -62,18 +62,21 @@ if __name__=='__main__':
 
     print 'creating root...'
     root = {
-        'ltree': list(objLTree(2, 0, 10)),
-        'dtree': dict(objDTree(1, 0, 10)),
+        'ltree': list(objLTree(1, 0, 8)),
+        'dtree': dict(objDTree(2, 0, 7)),
         }
     print 'created root:', total
 
     print 'initial opening'
     oreg = None
     oreg = SQLObjectRegistry(dbname)
-    r = oreg.load('root-0', 10)
-    #print r
+    r = oreg.load('root-0', 2)
 
-    for loop in xrange(4):
+    raw_input("Before Delete >> ")
+    del r
+    raw_input("After Delete >> ")
+
+    for loop in xrange(3):
         if oreg is not None:
             oreg.close()
 
@@ -101,17 +104,18 @@ if __name__=='__main__':
 
         print
 
-    if 1 and oreg is not None:
-        tstart = time.time()
-        n,c = oreg.stg.gcCollect()
-        tdelta = (time.time() - tstart) or 1
-        print 'gcCollect seconds: %1.1f,  oid/sec: %.0f,  cull: %s rooted: %s ' % (tdelta, (n+c)/tdelta, n, c)
+    if 1:
+        if oreg is not None:
+            tstart = time.time()
+            n,c = oreg.stg.gcCollect()
+            tdelta = (time.time() - tstart) or 1
+            print 'gcCollect seconds: %1.1f,  oid/sec: %.0f,  cull: %s rooted: %s ' % (tdelta, (n+c)/tdelta, n, c)
 
-    if 1 and oreg is not None:
-        tstart = time.time()
-        n,c = oreg.stg.gcCollect()
-        tdelta = (time.time() - tstart) or 1
-        print 'gcCollect seconds: %1.1f,  oid/sec: %.0f,  cull: %s rooted: %s ' % (tdelta, (n+c)/tdelta, n, c)
+        if oreg is not None:
+            tstart = time.time()
+            n,c = oreg.stg.gcCollect()
+            tdelta = (time.time() - tstart) or 1
+            print 'gcCollect seconds: %1.1f,  oid/sec: %.0f,  cull: %s rooted: %s ' % (tdelta, (n+c)/tdelta, n, c)
 
     if oreg is not None:
         oreg.commit()
