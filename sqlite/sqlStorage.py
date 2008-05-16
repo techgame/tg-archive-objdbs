@@ -27,6 +27,7 @@ class SQLStorage(object):
         _sql.createExternalTables,
         _sql.createLookupViews,
         _sql.createOidReferenceViews,
+        _sql.createReachabilityTable,
         ]
 
     def __init__(self, db):
@@ -46,6 +47,7 @@ class SQLStorage(object):
         self.fetchMetadata()
         self.nextOid = self.getMetaAttr('nextOid', 1000)
         self.newSession()
+        self.gcInit()
 
     def fetchMetadata(self):
         r = self.cursor.execute('select attr, value from odb_metadata')
@@ -134,9 +136,12 @@ class SQLStorage(object):
         return r.fetchone()
 
     def setURLPathForOid(self, urlpath, oid):
-        self.cursor.execute(
+        r = self.cursor
+        r.execute(
             "replace into exports (urlpath, oid_ref, ssid)"
             "  values(?,?,?)", (urlpath, oid, self.ssid))
+        r.execute(
+            """insert into oidGraphMembers values (?)""", (oid,))
 
     def findLiteral(self, value, value_hash, value_type):
         r = self.cursor.execute(
@@ -189,13 +194,14 @@ class SQLStorage(object):
             '  from lists_lookup where oid_host=?', (oid,))
         return r.fetchall()
     def setOrdered(self, oid, valueOids):
-        self.cursor.execute(
-            'delete from lists '
+        r = self.cursor
+        r.execute(
+            'delete from mappings '
             '  where oid_host=?', (oid,))
 
         ssid = self.ssid
-        self.cursor.executemany(
-            'insert into lists values(NULL, ?, ?, ?)',
+        r.executemany(
+            'insert into mappings values(NULL, ?, NULL, ?, ?)',
             ((oid, oid_v, ssid) for oid_v in valueOids))
         return oid
 
@@ -207,57 +213,123 @@ class SQLStorage(object):
             '  from mappings_lookup where oid_host=?', (oid,))
         return [(e[:3], e[3:]) for e in r.fetchall()]
     def setMapping(self, oid, itemOids):
-        self.cursor.execute(
+        r = self.cursor
+        r.execute(
             'delete from mappings '
             '  where oid_host=?', (oid,))
 
         ssid = self.ssid
-        self.cursor.executemany(
+        r.executemany(
             'insert into mappings values(NULL, ?, ?, ?, ?)',
             ((oid, oid_k, oid_v, ssid) for oid_k, oid_v in itemOids))
         return oid
 
+    def gcInit(self):
+        r = self.cursor
+        self.gcRestart()
+
+    def gcRestart(self):
+        #print 'gcRestart:'
+        r = self.cursor
+        r.execute('''
+            delete from oidGraphMembers;''')
+        r.execute('''
+            insert into oidGraphMembers 
+                select oid_ref from exports;''')
+
     def gc(self):
-        oidOut = self.oidReachability()
-        if not oidOut:
-            return
-
         r = self.cursor
-        r.executemany(
-            'delete from oid_lookup where oid=?',
-            ((oid,) for oid in oidOut))
-        r.executescript(_sql.deleteUnreferenced)
+        delta = self.gcIter(r)
+        if not delta:
+            return self.gcReap(r)
 
+    def gcFlush(self):
+        l = 0
+        r = None
+        while r is None:
+            r = self.gc()
+            l += 1
+        #print 'gcFlush loops:', l, 'removed:', n
+        return r
+
+    def gcCollect(self):
+        self.gcRestart()
+        return self.gcFlush()
+
+    def gcIter(self, r):
+        d = 0
+        r.execute('''
+            insert into oidGraphMembers
+                select oid_key from mappings
+                    where oid_host in oidGraphMembers
+                        and oid_key not in oidGraphMembers;''')
+        d += r.rowcount
+
+        r.execute('''
+            insert into oidGraphMembers
+                select oid_value from mappings
+                    where oid_host in oidGraphMembers 
+                        and oid_value not in oidGraphMembers;''')
+        d += r.rowcount
+        return d
+
+    def gcReap(self, r):
         self.db.commit()
+        count, = r.execute('''select count(oid) from oidGraphMembers;''').fetchone()
+        exports, = r.execute('''select count(oid_ref) from exports;''').fetchone()
+        if count <= exports:
+            self.gcRestart()
+            return 0, count
 
-    def oidReachability(self):
-        entries = []
-        r = self.cursor
-        entries.extend(r.execute(
-            'select 0, oid_ref from exports '))
-        entries.extend(r.execute(
-            'select oid_host, oid_value from lists '))
-        entries.extend(r.execute(
-            'select oid_host, oid_key from mappings '))
-        entries.extend(r.execute(
-            'select oid_host, oid_value from mappings '))
+        r.execute('delete from oid_lookup where oid not in oidGraphMembers')
+        n = max(0, r.rowcount)
+        if not n: 
+            return 0, count
 
-        result = set(v for e in entries for v in e)
-        hashtable = dict((oid, set()) for oid in result)
-        for oh, ov in entries:
-            hashtable[oh].add(ov)
+        r.executescript(_sql.deleteGarbage)
+        self.db.commit()
+        return n, count
 
-        result.remove(0)
-        working = hashtable[0]
-        result -= working
+    if 0:
+        def gc_old(self):
+            oidOut = self.oidReachability()
+            if not oidOut:
+                return
 
-        while working:
-            oid = working.pop()
-            level = hashtable.pop(oid, None)
-            if level:
-                level &= result
-                working.update(level)
-                result -= level
+            r = self.cursor
+            r.executemany(
+                'delete from oid_lookup where oid=?',
+                ((oid,) for oid in oidOut))
+            r.executescript(_sql.deleteUnreferenced)
 
-        return result
+            self.db.commit()
+
+        def oidReachability(self):
+            entries = []
+            r = self.cursor
+            entries.extend(r.execute(
+                'select 0, oid_ref from exports '))
+            entries.extend(r.execute(
+                'select oid_host, oid_key from mappings where oid_key!=NULL'))
+            entries.extend(r.execute(
+                'select oid_host, oid_value from mappings '))
+
+            result = set(v for e in entries for v in e)
+            hashtable = dict((oid, set()) for oid in result)
+            for oh, ov in entries:
+                hashtable[oh].add(ov)
+
+            result.remove(0)
+            working = hashtable[0]
+            result -= working
+
+            while working:
+                oid = working.pop()
+                level = hashtable.pop(oid, None)
+                if level:
+                    level &= result
+                    working.update(level)
+                    result -= level
+
+            return result
 

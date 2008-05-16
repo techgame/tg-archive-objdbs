@@ -49,15 +49,6 @@ create table if not exists weakrefs (
     primary key (oid_host) on conflict replace
 );
 
-create table if not exists lists (
-    tidx integer primary key,
-    oid_host integer,
-    oid_value integer,
-    ssid integer
-);
-create index if not exists lists_oid_host
-    on lists (oid_host);
-
 create table if not exists mappings (
     tidx integer primary key,
     oid_host integer,
@@ -99,7 +90,7 @@ create view if not exists lists_lookup as
         v.stg_kind as v_stg_kind,
         v.otype as v_otype
 
-    from lists
+    from mappings
     join oid_lookup as v
         on v.oid = oid_value;
 
@@ -149,11 +140,18 @@ create view if not exists oids as
   select oid from oid_lookup;
 """
 
-deleteUnreferenced = """
-delete from literals where oid not in oids;
-delete from weakrefs where oid_host not in oids;
-delete from lists where oid_host not in oids;
-delete from mappings where oid_host not in oids;
-delete from externals where oid not in oids;
+createReachabilityTable = """
+create temp table if not exists oidGraphMembers (
+    oid integer,
+    primary key (oid) on conflict replace
+);
+"""
+
+deleteGarbage = """
+delete from literals where oid not in oidGraphMembers;
+delete from weakrefs where oid_host not in oidGraphMembers;
+delete from mappings where oid_host not in oidGraphMembers;
+delete from externals where oid not in oidGraphMembers;
+delete from oidGraphMembers;
 """
 

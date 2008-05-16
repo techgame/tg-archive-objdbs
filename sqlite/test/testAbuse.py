@@ -21,7 +21,12 @@ from TG.objdbs.sqlite import SQLObjectRegistry
 #~ Definitions 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-class Node(list):
+class LNode(list):
+    def __init__(self, i, d):
+        self.i = i
+        self.d = d
+
+class DNode(dict):
     def __init__(self, i, d):
         self.i = i
         self.d = d
@@ -31,48 +36,74 @@ class Node(list):
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 total = 0
-def objTree(n, d, depth):
+def objLTree(n, d, depth):
     global total
     total += n
     for i in xrange(n):
-        obj = Node(i, d)
+        obj = LNode(i, d)
         if d+1 < depth-1:
-            obj.extend(objTree(n, d+1, depth))
+            obj.extend(objLTree(n, d+1, depth))
         yield obj
 
-def saveObjs(filename, tree, tname='root'):
-    oreg = SQLObjectRegistry(filename)
-    oidStart = oreg.nextOid
-    oreg.store(tree, tname)
-    oidEnd = oreg.nextOid
-    #oreg.gc()
-    oreg.close()
-    return oidStart, oidEnd
-
-def loadObjs(filename):
-    oreg = SQLObjectRegistry(filename)
-    oidStart = oreg.nextOid
-    root = oreg.load('root')
-    oidEnd = oreg.nextOid
-    oreg.close()
-    return oidStart, oidEnd
+def objDTree(n, d, depth):
+    global total
+    total += n
+    for i in xrange(n):
+        obj = DNode(i, d)
+        if d+1 < depth-1:
+            obj.update(objDTree(n, d+1, depth))
+        yield i, obj
 
 if __name__=='__main__':
-    dbname = ':memory:'
-    dbname = 'testAbuse.db'
+    #dbname = ':memory:'
+    dbname = 'db_testAbuse.db'
 
-    for loop in range(5):
-        print 'creating tree:',
-        tree = list(objTree(4, 0, 8))
-        print total
+    print 'creating root...'
+    root = {
+        'ltree': list(objLTree(2, 0, 10)),
+        'dtree': dict(objDTree(2, 0, 10)),
+        }
+    print 'created root:', total
+
+    print 'initial opening'
+    #oreg = SQLObjectRegistry(dbname)
+    oreg = None
+
+    for loop in xrange(2):
+        if oreg is not None:
+            oreg.close()
+
+        print
+        print 'opening'
+        oreg = SQLObjectRegistry(dbname)
 
         print 'saving'
-        s = time.time()
-        oidStart, oidEnd = saveObjs(dbname, tree, 'root-%s'%(loop%3,))
-        d = time.time() - s
-        oidDelta = oidEnd - oidStart
-        print 'done:', d, 
-        print 'oidDelta:', oidDelta, oidDelta/d
-        #print 'oidEnd:', oidEnd
+        oidStart = oreg.nextOid
+
+        tstart = time.time()
+        oreg.store(root, 'root-%s'%(loop%2,))
+        tdelta = time.time() - tstart
+        oidDelta = oreg.nextOid - oidStart
+
+        print 'done:', tdelta, 
+        print 'oidDelta:', oidDelta, oidDelta/tdelta
         print
+
+        if 0:
+            tstart = time.time()
+            n,c = oreg.stg.gcFlush()
+            tdelta = (time.time() - tstart) or 1
+            print 'gcFlush seconds: %1.1f,  oid/sec: %.0f,  cull: %s rooted: %s ' % (tdelta, (n+c)/tdelta, n, c)
+
+        print
+
+    if oreg is not None:
+        tstart = time.time()
+        n,c = oreg.stg.gcCollect()
+        tdelta = (time.time() - tstart) or 1
+        print 'gcCollect seconds: %1.1f,  oid/sec: %.0f,  cull: %s rooted: %s ' % (tdelta, (n+c)/tdelta, n, c)
+        oreg.commit()
+
+    if oreg is not None:
+        oreg.close()
 
