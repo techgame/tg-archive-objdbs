@@ -51,6 +51,16 @@ class ObjOidRef(object):
             ref = self.host.loadOidRef(self)
         return ref
 
+    def __getstate__(self):
+        raise NotImplementedError("__getstate__ on ObjOidRef should never be called")
+    def __reduce_ex__(self, proto):
+        ref = self.ref
+        if ref is None:
+            assert False, "I have to load it to save it??"
+
+        return ref.__reduce_ex__(proto)
+
+
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class ObjOidProxy(ProxyComplete):
@@ -59,6 +69,12 @@ class ObjOidProxy(ProxyComplete):
 
     def __repr__(self):
         return repr(self.__getProxy__())
+
+    def __getstate__(self):
+        raise NotImplementedError("__getstate__ on ObjOidProxy should never be called")
+    def __reduce_ex__(self, proto):
+        objRef = self.__getProxy__()
+        return objRef.__reduce_ex__(proto)
 
     def __proxyOrNone__(self):
         objRef = self.__getProxy__()
