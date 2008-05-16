@@ -85,12 +85,12 @@ if __name__=='__main__':
         oreg = SQLObjectRegistry(dbname)
 
         print 'saving'
-        oidStart = oreg.nextOid
+        oidStart = oreg.stg.nextOid
 
         tstart = time.time()
         oreg.store(root, 'root-%s'%(loop%2,))
         tdelta = time.time() - tstart
-        oidDelta = oreg.nextOid - oidStart
+        oidDelta = oreg.stg.nextOid - oidStart
 
         print 'done:', tdelta, 
         print 'oidDelta:', oidDelta, oidDelta/tdelta
@@ -98,7 +98,7 @@ if __name__=='__main__':
 
         if 0:
             tstart = time.time()
-            n,c = oreg.stg.gcFlush()
+            n,c = oreg.gcFlush()
             tdelta = (time.time() - tstart) or 1
             print 'gcFlush seconds: %1.1f,  oid/sec: %.0f,  cull: %s rooted: %s ' % (tdelta, (n+c)/tdelta, n, c)
 
@@ -107,13 +107,13 @@ if __name__=='__main__':
     if 1:
         if oreg is not None:
             tstart = time.time()
-            n,c = oreg.stg.gcCollect()
+            n,c = oreg.gcCollect()
             tdelta = (time.time() - tstart) or 1
             print 'gcCollect seconds: %1.1f,  oid/sec: %.0f,  cull: %s rooted: %s ' % (tdelta, (n+c)/tdelta, n, c)
 
         if oreg is not None:
             tstart = time.time()
-            n,c = oreg.stg.gcCollect()
+            n,c = oreg.gcCollect()
             tdelta = (time.time() - tstart) or 1
             print 'gcCollect seconds: %1.1f,  oid/sec: %.0f,  cull: %s rooted: %s ' % (tdelta, (n+c)/tdelta, n, c)
 

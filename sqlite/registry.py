@@ -55,38 +55,26 @@ class SQLObjectRegistry(object):
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    def commit(self):
-        self.stg.commit()
-    def gc(self):
-        self.stg.gc()
-    @property
-    def nextOid(self):
-        return self.stg.nextOid
+    def commit(self): self.stg.commit()
+    def gc(self): self.stg.gc()
+    def gcFull(self): self.stg.gcFull()
+    def gcCollect(self): self.stg.gcCollect()
+    def allURLPaths(self):
+        return self.stg.allURLPaths()
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def store(self, obj, urlpath=None):
         return self._save.store(obj, urlpath)
-
     def load(self, oid, depth=1):
         return self._load.loadOid(oid, depth)
 
-    def allOids(self):
-        return self.stg.allOids()
-
-    def allURLPaths(self):
-        return self.stg.allURLPaths()
-
     def close(self):
-        self.objToOids.clear()
         del self.objToOids
-
-        self.oidToObj.clear()
         del self.oidToObj
 
         self.stg.close()
-        del self.stg
-
         self.db.close()
+        del self.stg
         del self.db
 
