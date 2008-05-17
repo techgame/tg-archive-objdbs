@@ -12,7 +12,7 @@
 
 import weakref
 import pickle 
-from .proxy import ObjOidRef
+from .proxy import ObjOidRef, ObjOidProxy
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~ Definitions 
@@ -26,13 +26,21 @@ class ObjectDeserializer(object):
         self._deferredRefs = {}
         self.dbid = registry.dbid
         self.stg = registry.stg
+        self._save = registry._save
         self.objToOids = registry.objToOids
         self.oidToObj = registry.oidToObj
 
     def __repr__(self):
         return self.dbid
+
     def __getstate__(self):
         raise RuntimeError("Tried to store storage mechanism: %r" % (self,))
+
+    def close(self):
+        self._save = None
+        self.stg = None
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def loadOid(self, oid, depth=1):
         if isinstance(oid, basestring):
@@ -100,7 +108,7 @@ class ObjectDeserializer(object):
             self.setOidForObj(result, otype, oid, id(result))
 
             if depth != 0:
-                self._deferRef(oidRef, oid, depth-1)
+                self._deferRef(oidRef, oid, depth)
 
             return result
 
@@ -109,6 +117,10 @@ class ObjectDeserializer(object):
 
             self.setOidForObj(result, otype, oid)
             return result
+
+    def unloadOidRef(self, objRef, oid, ref):
+        if self._save is not None:
+            return self._save.unloadOidRef(objRef, oid, ref)
 
     def loadOidRef(self, oidRef):
         oid = oidRef.oid
@@ -121,7 +133,8 @@ class ObjectDeserializer(object):
         if useProxy is False:
             raise RuntimeError("Oid for proxy load is marked as a non-proxy load method")
 
-        ref = fn(self, oid, stg_kind, otype, depth)
+        ref = fn(self, oid, stg_kind, otype, depth-1)
+        self.setOidAliasForObj(ref, otype, oid)
         oidRef.ref = ref
         return ref
 
@@ -264,6 +277,12 @@ class ObjectDeserializer(object):
         self.objToOids[otype, okey] = oid
         self.oidToObj.add(oid, obj)
         return oid
+    def setOidAliasForObj(self, obj, otype, oid, okey=None):
+        if okey is None:
+            try: okey = hash(obj)
+            except TypeError: 
+                okey = id(obj)
+        self.objToOids[otype, okey] = oid
 
     def lookupOType(self, otype):
         path, dot, name = otype.rpartition('.')

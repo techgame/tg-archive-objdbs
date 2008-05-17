@@ -11,11 +11,12 @@
 #~ Imports 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+import gc
 import time
 from pprint import pprint
 import pickle
 import weakref
-from TG.objdbs.sqlite import SQLObjectRegistry
+from TG.objdbs.sqlite import SQLObjectRegistry, proxy
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~ Definitions 
@@ -62,19 +63,28 @@ if __name__=='__main__':
 
     print 'creating root...'
     root = {
-        'ltree': list(objLTree(1, 0, 8)),
-        'dtree': dict(objDTree(2, 0, 7)),
+        'ltree': list(objLTree(2, 0, 8)),
+        'dtree': dict(objDTree(2, 0, 8)),
         }
     print 'created root:', total
 
     print 'initial opening'
     oreg = None
     oreg = SQLObjectRegistry(dbname)
-    r = oreg.load('root-0', 2)
+    r = oreg.load('root-0', 5)
 
-    raw_input("Before Delete >> ")
+    print 'len(repr(r)):', len(repr(r))
+
+    print 'delete r:'
+    proxy.ObjOidRef.stupid = True
     del r
-    raw_input("After Delete >> ")
+
+    print 'commit()'
+    oreg.commit()
+    
+    print 'close()'
+    oreg.close()
+    oreg = None
 
     for loop in xrange(3):
         if oreg is not None:

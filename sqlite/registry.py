@@ -10,6 +10,7 @@
 #~ Imports 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+import gc
 import weakref
 import sqlite3
 
@@ -34,6 +35,10 @@ class OidMapping(dict):
         except TypeError:
             self[oid] = obj
 
+    def clear(self):
+        self._woids.clear()
+        return dict.clear(self)
+
 
 class SQLObjectRegistry(object):
     def __init__(self, filename, dbid=None):
@@ -55,10 +60,14 @@ class SQLObjectRegistry(object):
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    def commit(self): self.stg.commit()
-    def gc(self): self.stg.gc()
-    def gcFull(self): self.stg.gcFull()
-    def gcCollect(self): self.stg.gcCollect()
+    def commit(self): 
+        return self._save.commit()
+    def gc(self): 
+        return self.stg.gc()
+    def gcFull(self): 
+        return self.stg.gcFull()
+    def gcCollect(self): 
+        return self.stg.gcCollect()
     def allURLPaths(self):
         return self.stg.allURLPaths()
 
@@ -69,12 +78,22 @@ class SQLObjectRegistry(object):
     def load(self, oid, depth=1):
         return self._load.loadOid(oid, depth)
 
+    def clearCaches(self):
+        #self.objToOids.clear()
+        self.oidToObj.clear()
+
     def close(self):
-        del self.objToOids
-        del self.oidToObj
+        self.clearCaches()
+        self.commit()
+
+        self._load.close()
+        self._save.close()
 
         self.stg.close()
         self.db.close()
+
+        del self._load
+        del self._save
         del self.stg
         del self.db
 

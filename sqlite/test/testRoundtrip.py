@@ -35,6 +35,8 @@ def saveObjs(filename):
     print tobj.desc
 
     oreg.store(tobj, 'tobj')
+    tobj = None
+
     oreg.gcCollect()
     oreg.close()
 

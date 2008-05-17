@@ -10,9 +10,9 @@
 #~ Imports 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-from types import InstanceType
 import weakref
 import pickle 
+from .proxy import ObjOidRef, ObjOidProxy
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~ Definitions 
@@ -29,10 +29,17 @@ class ObjectSerializer(object):
         self.dbid = registry.dbid
         self.stg = registry.stg
         self.objToOids = registry.objToOids
-        self.oidToObj = registry.oidToObj
+
+    def __repr__(self):
+        return self.dbid
 
     def __getstate__(self):
         raise RuntimeError("Tried to store storage mechanism: %r" % (self,))
+
+    def close(self):
+        self.stg = None
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def oidForObj(self, obj, create=True):
         otype = self.otypeForObj(obj)
@@ -51,7 +58,6 @@ class ObjectSerializer(object):
         except TypeError: 
             okey = id(obj)
         self.objToOids[otype, okey] = oid
-        self.oidToObj.add(oid, obj)
         return oid
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -59,7 +65,6 @@ class ObjectSerializer(object):
     def store(self, obj, urlPath=None):
         oid = self._storeObject(obj)
         if urlPath is not None:
-            self.oidToObj.add(urlPath, obj)
             self.stg.setURLPathForOid(urlPath, oid)
 
         self.commit()
@@ -83,10 +88,10 @@ class ObjectSerializer(object):
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def commit(self):
-        self._storeDeferred()
+        self.storeDeferred()
         self.stg.commit()
 
-    def _storeDeferred(self):
+    def storeDeferred(self):
         work = self._deferredStores
         while work:
             fn, args = work.pop()
@@ -165,6 +170,22 @@ class ObjectSerializer(object):
         self.stg.setWeakref(oid, oid_ref)
         return oid
 
+    @regType([ObjOidRef])
+    def _storeAs_oidRef(self, objRef):
+        obj = objRef.ref
+        if obj is None:
+            return objRef.oid
+
+        objRef.ref = None
+        oid = self._storeObject(obj)
+        objRef.oid = oid
+        return oid
+
+    @regType([ObjOidProxy])
+    def _storeAs_oidProxy(self, obj):
+        obj = obj.__getProxy__()
+        return self._storeAs_oidRef(obj)
+
     del regType
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -242,4 +263,16 @@ class ObjectSerializer(object):
             value_type = type(value).__name__
         oid = self.stg.setLiteral(value, hash(value), value_type, stg_kind)
         return self.setOidForObj(value, value_type, oid)
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    def unloadOidRef(self, objRef, oid, obj):
+        ##print '@save:', oid
+
+        new_oid = self._storeObject(obj)
+        if new_oid != oid:
+            raise Exception('OID mismatch: %s %s' % (new_oid, oid))
+
+        self.storeDeferred()
+        return oid
 
