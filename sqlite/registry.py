@@ -58,6 +58,10 @@ class SQLObjectRegistry(object):
         self._save = ObjectSerializer(self)
         self._load = ObjectDeserializer(self)
 
+    def externalUrlFns(self, urlForExternal, objForUrl):
+        self._save.urlForExternal = urlForExternal
+        self._load.resolveExternalUrl = objForUrl
+
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def commit(self): 
@@ -75,6 +79,8 @@ class SQLObjectRegistry(object):
 
     def store(self, obj, urlpath=None):
         return self._save.store(obj, urlpath)
+    def storeAll(self, iter, named=None):
+        return self._save.storeAll(iter, named)
     def load(self, oid, depth=1):
         return self._load.loadOid(oid, depth)
 

@@ -60,7 +60,6 @@ class ObjOidRef(object):
     def __call__(self, autoload=True):
         ref = self.ref
         if ref is None and autoload:
-            print 'deref:', self.oid
             ref = self.host.loadOidRef(self)
         return ref
 

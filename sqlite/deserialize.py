@@ -40,6 +40,9 @@ class ObjectDeserializer(object):
         self._save = None
         self.stg = None
 
+    def onLoadedObject(self, oid, obj):
+        return obj
+
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def loadOid(self, oid, depth=1):
@@ -171,7 +174,11 @@ class ObjectDeserializer(object):
     def _loadAs_weakref(self, oid, stg_kind, otype, depth):
         result = self.stg.getWeakref(oid)
         if otype == 'weakref':
-            result = weakref.ref(result)
+            try:
+                result = weakref.ref(result)
+            except TypeError:
+                pass
+
         else: assert False, (stg_kind, otype, result)
 
         return result
@@ -204,6 +211,14 @@ class ObjectDeserializer(object):
         else: assert False, (stg_kind, otype, result)
 
         return result
+
+    @regKind('external', True)
+    def _loadAs_external(self, oid, stg_kind, otype, depth):
+        url = self.stg.getExternal(oid)
+        return self.resolveExternalUrl(url)
+
+    def resolveExternalUrl(self, url):
+        return None
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #~ Storage by Reduction
@@ -261,7 +276,7 @@ class ObjectDeserializer(object):
             del dictitems
             tempOids.discard(rEntry[0])
 
-        return obj
+        return self.onLoadedObject(oid, obj)
 
     del regKind
 

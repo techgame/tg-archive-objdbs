@@ -31,6 +31,11 @@ def saveObjs(filename):
     else:
         tobj.n += 1
 
+    wrobj = oreg.load('wrtobj')
+    if wrobj is None:
+        wrobj = weakref.ref(tobj)
+    assert wrobj() is tobj
+
     tobj.desc = 'a fun object: %s' % (tobj.n,)
     print tobj.desc
 

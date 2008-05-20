@@ -140,6 +140,9 @@ class SQLStorage(object):
         return r.fetchone()
 
     def setURLPathForOid(self, urlpath, oid):
+        if not urlpath: 
+            return
+
         r = self.cursor
         r.execute(
             "replace into exports (urlpath, oid_ref, ssid)"
@@ -178,6 +181,19 @@ class SQLStorage(object):
         self.cursor.execute(
             'insert into literals (oid, value, value_type, value_hash, ssid)'
             '  values(?, ?, ?, ?, ?)', (oid, value, value_type, value_hash, self.ssid))
+        return oid
+
+    def getExternal(self, oid):
+        r = self.cursor.execute(
+            'select url from externals '
+            '  where oid=?', (oid,))
+        r = r.fetchone()
+        if r is not None:
+            return r[0]
+    def setExternal(self, oid, url):
+        self.cursor.execute(
+            'insert into externals (oid, url, ssid)'
+            '  values(?, ?, ?)', (oid, url, self.ssid))
         return oid
 
     def getWeakref(self, oid):

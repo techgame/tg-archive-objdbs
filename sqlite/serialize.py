@@ -62,6 +62,20 @@ class ObjectSerializer(object):
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+    def storeAll(self, iter, named=None):
+        for obj in iter:
+            self._storeObject(obj)
+
+        if named:
+            if hasattr(named, 'iteritems'):
+                named = named.iteritems()
+
+            setPath = self.stg.setURLPathForOid
+            for path, obj in named:
+                setPath(path, self._storeObject(obj))
+
+        self.commit()
+
     def store(self, obj, urlPath=None):
         oid = self._storeObject(obj)
         if urlPath is not None:
@@ -104,8 +118,21 @@ class ObjectSerializer(object):
     #~ Storage by Type
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    def storeExternal(self, obj):
+    def urlForExternal(self, obj):
         return None
+
+    def storeExternal(self, obj):
+        url = self.urlForExternal(obj)
+        if url is None:
+            return None
+
+        oid = self.oidForObj(obj, False)
+        if oid is not None:
+            return oid
+
+        oid = self._stg_oid(obj, 'external')
+        self.stg.setExternal(oid, url)
+        return oid
 
     _storeByTypeMap = {}
     def storeByType(self, obj):
@@ -214,9 +241,6 @@ class ObjectSerializer(object):
         raise Exception("Cannot store %r object: %r" % (obj.__class__.__name__, obj))
 
     def _asReductionMap(self, fn, newArgs, state=None, listitems=None, dictitems=None):
-        if fn.__name__ != '__newobj__':
-            raise NotImplementedError("Outside support for reduce protocol 2")
-
         reduction = [
             ('args', newArgs[1:]), ('state', state),
             ('listitems', listitems and list(listitems)),
