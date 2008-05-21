@@ -120,6 +120,8 @@ class ObjectSerializer(object):
             fn, args = work.pop()
             fn(*args)
 
+    #def _defer(self, fn, *args):
+    #    fn(*args)
     def _defer(self, fn, *args):
         self._deferredStores.append((fn, args))
 
