@@ -42,19 +42,24 @@ class OidMapping(dict):
 
 class SQLObjectRegistry(object):
     def __init__(self, filename, dbid=None):
-        self.dbid = dbid or filename
         self.objToOids = {}
         self.oidToObj = OidMapping()
-        self._initFileStorage(filename)
+        self._initFileStorage(filename, dbid)
 
     def __getstate__(self):
         raise RuntimeError("Tried to store storage mechanism: %r" % (self,))
 
-    def _initFileStorage(self, filename):
+    def _initFileStorage(self, filename, dbid=None):
         self.db = sqlite3.connect(filename)
         self.db.isolation_level = "DEFERRED"
 
         self.stg = SQLStorage(self.db)
+
+        self.dbid = self.stg.dbid
+        if self.dbid is None:
+            self.dbid = dbid or filename 
+            self.stg.dbid = self.dbid
+
         self._save = ObjectSerializer(self)
         self._load = ObjectDeserializer(self)
 
@@ -63,6 +68,18 @@ class SQLObjectRegistry(object):
         self._load.resolveExternalUrl = objForUrl
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    def getMetadata(self):
+        """returns a copy of the metadata"""
+        return self.stg.getMetadata()
+    meta = property(getMetadata) 
+
+    def getMetaAttr(self, attr, default=None):
+        return self.stg.getMetaAttr(attr, default)
+    def setMetaAttr(self, attr, value):
+        return self.stg.setMetaAttr(attr, value)
+    def delMetaAttr(self, attr):
+        return self.stg.delMetaAttr(attr)
 
     def commit(self): 
         return self._save.commit()
@@ -73,12 +90,21 @@ class SQLObjectRegistry(object):
     def gcCollect(self): 
         return self.stg.gcCollect()
     def allURLPaths(self):
-        return self.stg.allURLPaths()
+        return [url for url,oid in self.stg.allURLPaths()]
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+    def __getitem__(self, key):
+        return self.load(key)
+    def __setitem__(self, key, obj):
+        return self.store(obj, key)
+    def __delitem__(self, key, obj):
+        return self.remove(obj)
+
     def store(self, obj, urlpath=None):
         return self._save.store(obj, urlpath)
+    def remove(self, obj):
+        return self._save.remove(obj)
     def storeAll(self, iter, named=None):
         return self._save.storeAll(iter, named)
     def load(self, oid, depth=1):

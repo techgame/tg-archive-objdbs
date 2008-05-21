@@ -154,15 +154,8 @@ class ObjectDeserializer(object):
     @regKind('lit', False)
     def _loadAs_literal(self, oid, stg_kind, otype, depth):
         result = self.stg.getLiteral(oid)
-        if otype in ('str', 'unicode'):
-            return result
-
-        elif not isinstance(result, basestring):
-            if otype == 'bool':
-                result = bool(result)
-            return result
-
-        else: assert False, (stg_kind, otype, result)
+        otype = __builtins__[otype]
+        return otype(result)
 
     @regKind('pickle', True)
     def _loadAs_pickle(self, oid, stg_kind, otype, depth):

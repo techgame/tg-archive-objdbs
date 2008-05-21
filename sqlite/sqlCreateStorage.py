@@ -152,5 +152,6 @@ delete from literals where oid not in oidGraphMembers;
 delete from weakrefs where oid_host not in oidGraphMembers;
 delete from mappings where oid_host not in oidGraphMembers;
 delete from externals where oid not in oidGraphMembers;
+delete from exports where oid_ref not in oids;
 """
 

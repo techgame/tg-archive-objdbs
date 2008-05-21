@@ -64,15 +64,18 @@ class ObjectSerializer(object):
 
     def storeAll(self, iter, named=None):
         for obj in iter:
-            self._storeObject(obj)
+            oid = self._storeObject(obj)
+            self.storeDeferred()
 
-        if named:
+        if named is not None:
             if hasattr(named, 'iteritems'):
                 named = named.iteritems()
 
             setPath = self.stg.setURLPathForOid
             for path, obj in named:
-                setPath(path, self._storeObject(obj))
+                oid = self._storeObject(obj)
+                setPath(path, oid)
+                self.storeDeferred()
 
         self.commit()
 
@@ -83,6 +86,12 @@ class ObjectSerializer(object):
 
         self.commit()
         return oid
+
+    def remove(self, obj):
+        oid = self.oidForObj(obj, False)
+        if oid is not None:
+            self.stg.removeOid(oid)
+            return oid
 
     def _storeObject(self, obj):
         oid = self.storeExternal(obj)

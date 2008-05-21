@@ -57,6 +57,8 @@ class SQLStorage(object):
         r = self.cursor.execute('select attr, value from odb_metadata')
         self._metadata = dict(r.fetchall())
 
+    def getMetadata(self):
+        return self._metadata.copy()
     def getMetaAttr(self, attr, default=None):
         return self._metadata.get(attr, default)
     def setMetaAttr(self, attr, value):
@@ -67,6 +69,12 @@ class SQLStorage(object):
                 'replace into odb_metadata '
                 '  (attr, value) values (?, ?)', 
                 (attr, value))
+    def delMetaAttr(self, attr):
+        r = self.cursor
+        r.execute(
+            'delete from odb_metadata '
+            '  where attr=?', (attr,))
+        return r.rowcount > 0
 
     def getDbid(self):
         return self.getMetaAttr('dbid')
@@ -122,6 +130,14 @@ class SQLStorage(object):
             'replace into oid_lookup (oid, stg_kind, otype, ssid) '
             '  values(?, ?, ?, ?)', (oid, stg_kind, otype, self.ssid))
         return oid
+
+    def removeOid(self, oid):
+        self.cursor.execute(
+            'delete from oid_lookup where oid=?', (oid,))
+        self.cursor.execute(
+            'delete from exports where oid_ref=?', (oid,))
+        self.cursor.execute(
+            'delete from mappings where oid_host=?', (oid,))
 
     def allURLPaths(self, incOid=True):
         if incOid:
