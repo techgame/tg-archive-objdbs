@@ -44,6 +44,15 @@ class ObjOidRef(object):
         self.wrproxy = weakref.ref(obj, self._collect)
         return obj
 
+    def commit(self):
+        ref = self.ref
+        if ref is None: return
+        oid = self.oid
+        print 'commit!:', oid, ref
+        #noid = self.host.unloadOidRef(self, oid, ref)
+        #assert noid == oid
+        #self.ref = None
+
     def _collect(self, wr=None):
         ref = self.ref
         if ref is None:
@@ -56,6 +65,7 @@ class ObjOidRef(object):
         if oid is None:
             raise Exception("Could not save OidRef: %r" % (self,), self.oid)
         self.oid = oid
+        return oid
 
     def __call__(self, autoload=True):
         ref = self.ref

@@ -294,11 +294,19 @@ class ObjectDeserializer(object):
 
     def lookupOType(self, otype):
         path, dot, name = otype.rpartition('.')
-        if dot:
-            m = __import__(path, {}, {}, [name])
-        else: m = __builtins__
+        if not dot:
+            m = __builtins__
+        else: 
+            try:
+                m = __import__(path, {}, {}, [name])
+            except Exception:
+                print (path, dot, name)
+                raise
 
-        return getattr(m, name)
+        try:
+            return getattr(m, name)
+        except AttributeError:
+            raise AttributeError("Module %r has not attribute %r" % (m, name))
 
     def _stg_getOrdered(self, oid, depth):
         load = self.loadEntry

@@ -76,15 +76,16 @@ def saveObjs(filename):
     wr = weakref.ref(mobj)
     oreg.store(wr)
 
+    oreg.commit()
     oreg.close()
 
 def loadObjs(filename):
     oreg = SQLObjectRegistry(filename)
     print
-    for url, oid in oreg.allURLPaths():
+    for url in oreg.allURLPaths():
         print
-        print 'load url:', url, 'oid:', oid
-        r = oreg.load(oid)
+        print 'load url:', url
+        r = oreg.load(url)
         pprint((r, vars(r)))
 
         rl = getattr(r, 'recurse', None)
@@ -94,6 +95,7 @@ def loadObjs(filename):
             pprint((r, vars(r)))
             print
     print
+    oreg.commit()
     oreg.close()
 
 if __name__=='__main__':

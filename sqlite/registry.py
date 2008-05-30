@@ -39,6 +39,13 @@ class OidMapping(dict):
         self._woids.clear()
         return dict.clear(self)
 
+    def commit(self):
+        for oid, v in self._woids.items():
+            if not isinstance(oid, int):
+                continue
+            if hasattr(v, '__getProxy__'):
+                v = v.__getProxy__()
+                v.commit()
 
 class SQLObjectRegistry(object):
     def __init__(self, filename, dbid=None):
@@ -82,6 +89,7 @@ class SQLObjectRegistry(object):
         return self.stg.delMetaAttr(attr)
 
     def commit(self): 
+        self.oidToObj.commit()
         return self._save.commit()
     def gc(self): 
         return self.stg.gc()
@@ -111,7 +119,6 @@ class SQLObjectRegistry(object):
         return self._load.loadOid(oid, depth)
 
     def clearCaches(self):
-        #self.objToOids.clear()
         self.oidToObj.clear()
 
     def close(self):
