@@ -11,6 +11,7 @@
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 import uuid
+from sqlite3 import ProgrammingError
 from . import sqlCreateStorage as _sql
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -70,8 +71,7 @@ class SQLStorage(object):
                 '  (attr, value) values (?, ?)', 
                 (attr, value))
     def delMetaAttr(self, attr):
-        r = self.cursor
-        r.execute(
+        r = self.cursor.execute(
             'delete from odb_metadata '
             '  where attr=?', (attr,))
         return r.rowcount > 0
@@ -295,14 +295,14 @@ class SQLStorage(object):
 
     def gcIter(self, r):
         d = 0
-        r.execute('''
+        r = r.execute('''
             insert into oidGraphMembers
                 select oid_key from mappings
                     where oid_host in oidGraphMembers
                         and oid_key not in oidGraphMembers;''')
         d += r.rowcount
 
-        r.execute('''
+        r = r.execute('''
             insert into oidGraphMembers
                 select oid_value from mappings
                     where oid_host in oidGraphMembers 
@@ -311,13 +311,13 @@ class SQLStorage(object):
         return d
 
     def gcReap(self, r):
-        self.db.commit()
+        self.commit()
         count, = r.execute('''select count(oid) from oidGraphMembers;''').fetchone()
         exports, = r.execute('''select count(oid_ref) from exports;''').fetchone()
 
         nCollected = 0
         if count > exports:
-            r.execute('delete from oid_lookup where oid not in oidGraphMembers')
+            r = r.execute('delete from oid_lookup where oid not in oidGraphMembers')
             nCollected = max(0, r.rowcount)
             if nCollected: 
                 r.executescript(_sql.deleteGarbage)

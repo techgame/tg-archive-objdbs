@@ -10,46 +10,22 @@
 #~ Imports 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+import os
 import gc
-import weakref
 import sqlite3
 
-from serialize import ObjectSerializer
-from deserialize import ObjectDeserializer
-from sqlStorage import SQLStorage
+from .oidMappings import OidMapping, ObjMapping
+from .serialize import ObjectSerializer
+from .deserialize import ObjectDeserializer
+from .sqlStorage import SQLStorage
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~ Definitions 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-class OidMapping(dict):
-    def __init__(self):
-        self._woids = weakref.WeakValueDictionary()
-
-    def __missing__(self, oid):
-        return self._woids.get(oid, None)
-
-    def add(self, oid, obj):
-        try:
-            self._woids[oid] = obj
-        except TypeError:
-            self[oid] = obj
-
-    def clear(self):
-        self._woids.clear()
-        return dict.clear(self)
-
-    def commit(self):
-        for oid, v in self._woids.items():
-            if not isinstance(oid, int):
-                continue
-            if hasattr(v, '__getProxy__'):
-                v = v.__getProxy__()
-                v.commit()
-
 class SQLObjectRegistry(object):
     def __init__(self, filename, dbid=None):
-        self.objToOids = {}
+        self.objToOid = ObjMapping()
         self.oidToObj = OidMapping()
         self._initFileStorage(filename, dbid)
 
@@ -57,6 +33,7 @@ class SQLObjectRegistry(object):
         raise RuntimeError("Tried to store storage mechanism: %r" % (self,))
 
     def _initFileStorage(self, filename, dbid=None):
+        filename = os.path.abspath(filename)
         self.db = sqlite3.connect(filename)
         self.db.isolation_level = "DEFERRED"
 
@@ -89,7 +66,7 @@ class SQLObjectRegistry(object):
         return self.stg.delMetaAttr(attr)
 
     def commit(self): 
-        self.oidToObj.commit()
+        self.oidToObj.commitOpen(self._save)
         return self._save.commit()
     def gc(self): 
         return self.stg.gc()
@@ -120,10 +97,10 @@ class SQLObjectRegistry(object):
 
     def clearCaches(self):
         self.oidToObj.clear()
+        self.objToOid.clear()
 
     def close(self):
         self.clearCaches()
-        self.commit()
 
         self._load.close()
         self._save.close()

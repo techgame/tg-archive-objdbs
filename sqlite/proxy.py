@@ -18,20 +18,24 @@ from TG.objdbs.objProxy import ProxyComplete
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class ObjOidRef(object):
-    __slots__ = ('host', 'oid', 'ref', 'wrproxy')
+    url = None
 
-    stupid = False
     def __init__(self, host, oid):
         self.host = host
         self.oid = oid
         self.ref = None
         self.wrproxy = None
 
+    #def __repr__(self):
+    #    if self.ref is None:
+    #        return "<ref oid: %r host: %r open: %s>" % (self.oid, self.host, self.ref is None)
+    #    else: return "@%r %r" % (self.oid, self.ref)
+
     def __repr__(self):
-        if self.ref is None:
-            return "<ref oid: %r host: %r>" % (self.oid, self.host)
-        else: 
-            return "@%r %r" % (self.oid, self.ref)
+        return "<ref oid: %r host: %r open: %s>" % (self.oid, self.host, self.ref is not None)
+
+    def __getProxy__(self): 
+        return self
 
     def proxy(self):
         pxy = self.wrproxy
@@ -41,35 +45,14 @@ class ObjOidRef(object):
                 return obj
 
         obj = ObjOidProxy(self)
-        self.wrproxy = weakref.ref(obj, self._collect)
+        self.wrproxy = weakref.ref(obj)
         return obj
 
-    def commit(self):
-        ref = self.ref
-        if ref is None: return
-        oid = self.oid
-        print 'commit!:', oid, ref
-        #noid = self.host.unloadOidRef(self, oid, ref)
-        #assert noid == oid
-        #self.ref = None
-
-    def _collect(self, wr=None):
-        ref = self.ref
-        if ref is None:
-            return
-
-        self.ref = None
-
-        oid = self.oid
-        oid = self.host.unloadOidRef(self, oid, ref)
-        if oid is None:
-            raise Exception("Could not save OidRef: %r" % (self,), self.oid)
-        self.oid = oid
-        return oid
-
-    def __call__(self, autoload=True):
+    forbidLoading = 0
+    def load(self, autoload=True):
         ref = self.ref
         if ref is None and autoload:
+            assert self.__class__.forbidLoading == 0
             ref = self.host.loadOidRef(self)
         return ref
 
@@ -85,19 +68,19 @@ class ObjOidProxy(ProxyComplete):
     def __repr__(self):
         return repr(self.__getProxy__())
 
+    def __hash__(self):
+        raise TypeError("ObjOidProxy objects are unhashable")
+
     def __getstate__(self):
         raise NotImplementedError("__getstate__ on ObjOidProxy should never be called")
 
     def __proxyOrNone__(self):
         objRef = self.__getProxy__()
         if objRef is not None:
-            return objRef(False)
+            return objRef.load(False)
     def __proxy__(self):
         objRef = self.__getProxy__()
-        return objRef(True)
-
-    def __hash__(self):
-        raise TypeError("ObjOidProxy objects are unhashable")
+        return objRef.load(True)
 
     def __getattr__(self, name):
         obj = self.__proxy__()

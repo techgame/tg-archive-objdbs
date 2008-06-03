@@ -18,17 +18,22 @@ from .proxy import ObjOidRef, ObjOidProxy
 #~ Definitions 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-class linear_dict(list):
+class reduction_list(list):
+    __slots__ = ()
+
+class reduction_dict(list):
     __slots__ = ()
 
 class ObjectSerializer(object):
     _reduceProtocol = 2
 
     def __init__(self, registry):
+        self._keepitclose = []
         self._deferredStores = []
         self.dbid = registry.dbid
         self.stg = registry.stg
-        self.objToOids = registry.objToOids
+        self.objToOid = registry.objToOid
+        self.oidToObj = registry.oidToObj
 
     def __repr__(self):
         return self.dbid
@@ -42,22 +47,14 @@ class ObjectSerializer(object):
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def oidForObj(self, obj, create=True):
-        otype = self.otypeForObj(obj)
-        try: okey = hash(obj)
-        except TypeError: 
-            okey = id(obj)
-
-        oid = self.objToOids.get((otype, okey))
-
+        oid = self.objToOid.find(obj)
         if oid is None and create:
             oid = self._storeObject(obj)
         return oid
 
-    def setOidForObj(self, obj, otype, oid):
-        try: okey = hash(obj)
-        except TypeError: 
-            okey = id(obj)
-        self.objToOids[otype, okey] = oid
+    def setOidForObj(self, obj, otype, oid, replace=False):
+        self.oidToObj.addByStore(oid, obj, replace)
+        self.objToOid.addByStore(oid, obj, replace)
         return oid
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -77,21 +74,32 @@ class ObjectSerializer(object):
                 setPath(path, oid)
                 self.storeDeferred()
 
-        self.commit()
-
     def store(self, obj, urlPath=None):
+        self.storeDeferred()
         oid = self._storeObject(obj)
         if urlPath is not None:
             self.stg.setURLPathForOid(urlPath, oid)
 
-        self.commit()
+        self.clearDeferred()
+        return oid
+
+    def storeOpen(self, obj, urlPath=None):
+        oid = self._storeObject(obj)
+        if urlPath is not None:
+            self.stg.setURLPathForOid(urlPath, oid)
+
+        self.storeDeferred()
         return oid
 
     def remove(self, obj):
         oid = self.oidForObj(obj, False)
-        if oid is not None:
-            self.stg.removeOid(oid)
-            return oid
+        if oid is None: 
+            return None
+
+        self.objToOid.remove(obj)
+        self.oidToObj.remove(oid, obj)
+        self.stg.removeOid(oid)
+        return oid
 
     def _storeObject(self, obj):
         oid = self.storeExternal(obj)
@@ -114,6 +122,8 @@ class ObjectSerializer(object):
         self.storeDeferred()
         self.stg.commit()
 
+    def clearDeferred(self):
+        del self._deferredStores[:]
     def storeDeferred(self):
         work = self._deferredStores
         while work:
@@ -133,10 +143,15 @@ class ObjectSerializer(object):
         return None
 
     def storeExternal(self, obj):
-        url = self.urlForExternal(obj)
+        if isinstance(obj, (ObjOidProxy, ObjOidRef)):
+            url = obj.__getProxy__().url
+        else:
+            url = self.urlForExternal(obj)
+
         if url is None:
             return None
 
+        assert False, ('external:', url)
         oid = self.oidForObj(obj, False)
         if oid is not None:
             return oid
@@ -195,12 +210,6 @@ class ObjectSerializer(object):
         self._defer(self._stg_setMapping, oid, obj.iteritems())
         return oid
 
-    @regType([linear_dict])
-    def _storeAs_linearMapping(self, obj):
-        oid = self._stg_oid(obj, 'map', 'dict')
-        self._defer(self._stg_setMapping, oid, obj)
-        return oid
-
     @regType([weakref.ref])
     def _storeAs_weakref(self, obj):
         oid = self._stg_oid(obj, 'weakref')
@@ -208,23 +217,9 @@ class ObjectSerializer(object):
         self.stg.setWeakref(oid, oid_ref)
         return oid
 
-    @regType([ObjOidRef])
-    def _storeAs_oidRef(self, objRef):
-        obj = objRef.ref
-        if obj is None:
-            return objRef.oid
-
-        objRef.ref = None
-        oid = self._storeObject(obj)
-        objRef.oid = oid
-        return oid
-
-    @regType([ObjOidProxy])
-    def _storeAs_oidProxy(self, obj):
-        obj = obj.__getProxy__()
-        return self._storeAs_oidRef(obj)
-
-    del regType
+    @regType([ObjOidProxy, ObjOidRef])
+    def _storeAs_oidRef(self, obj):
+        return obj.__getProxy__().oid
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #~ Storage by Reduction
@@ -252,12 +247,28 @@ class ObjectSerializer(object):
         raise Exception("Cannot store %r object: %r" % (obj.__class__.__name__, obj))
 
     def _asReductionMap(self, fn, newArgs, state=None, listitems=None, dictitems=None):
+        if type(state) is dict:
+            state = reduction_dict(state.items())
+
         reduction = [
-            ('args', newArgs[1:]), ('state', state),
-            ('listitems', listitems and list(listitems)),
-            ('dictitems', dictitems and linear_dict(dictitems))]
+            ('args', reduction_list(newArgs[1:])), 
+            ('state', state),
+            ('listitems', listitems and reduction_list(listitems) or None),
+            ('dictitems', dictitems and reduction_dict(dictitems) or None)]
         reduction = [(k,v) for k,v in reduction if v]
         return reduction
+
+    @regType([reduction_list])
+    def _storeAs_reductionList(self, obj):
+        oid = self._stg_oid(obj, 'reduction', 'list', True)
+        self._stg_setOrdered(oid, obj)
+        return oid
+
+    @regType([reduction_dict])
+    def _storeAs_reductionDict(self, obj):
+        oid = self._stg_oid(obj, 'reduction', 'dict', True)
+        self._stg_setMapping(oid, obj)
+        return oid
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #~ Utilites
@@ -270,24 +281,26 @@ class ObjectSerializer(object):
             return m+'.'+klass.__name__
         else: return klass.__name__
 
-    def _stg_oid(self, obj, stg_kind, otype=None):
+    def _stg_oid(self, obj, stg_kind, otype=None, transient=False):
         if otype is None:
             otype = self.otypeForObj(obj)
         oid = self.oidForObj(obj, False)
         oid = self.stg.setOid(oid, stg_kind, otype)
+        if transient:
+            return oid
         return self.setOidForObj(obj, otype, oid)
 
     def _stg_setOrdered(self, oid, listitems):
         oidOf = self.oidForObj
         valueOids = [oidOf(v) for v in listitems]
         self.stg.setOrdered(oid, valueOids)
-        return oid
+        return valueOids
 
     def _stg_setMapping(self, oid, dictitems):
         oidOf = self.oidForObj
         itemOids = [(oidOf(k), oidOf(v)) for k, v in dictitems]
         self.stg.setMapping(oid, itemOids)
-        return oid
+        return itemOids
 
     def _stg_setLiteral(self, value, value_type, stg_kind):
         oid = self.oidForObj(value, False)
@@ -299,15 +312,6 @@ class ObjectSerializer(object):
         oid = self.stg.setLiteral(value, hash(value), value_type, stg_kind)
         return self.setOidForObj(value, value_type, oid)
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    del regType
 
-    def unloadOidRef(self, objRef, oid, obj):
-        ##print '@save:', oid
-
-        new_oid = self._storeObject(obj)
-        if new_oid != oid:
-            raise Exception('OID mismatch: %s %s' % (new_oid, oid))
-
-        self.storeDeferred()
-        return oid
 
