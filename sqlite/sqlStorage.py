@@ -10,8 +10,9 @@
 #~ Imports 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+import os
 import uuid
-from sqlite3 import ProgrammingError
+import sqlite3
 from . import sqlCreateStorage as _sql
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -31,10 +32,18 @@ class SQLStorage(object):
         _sql.createReachabilityTable,
         ]
 
-    def __init__(self, db):
+    def __init__(self, filename, dbid=None):
+        filename = os.path.abspath(filename)
+        self.dbFilename = filename
+        db = sqlite3.connect(filename)
+        db.isolation_level = "DEFERRED"
+
         self.db = db
         self.cursor = db.cursor()
         self.initialize()
+
+        if self.dbid is None:
+            self.dbid = dbid or filename 
 
     def __getstate__(self):
         raise RuntimeError("Tried to store storage mechanism: %r" % (self,))
@@ -42,8 +51,9 @@ class SQLStorage(object):
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def close(self):
-        self.db = None
         self.cursor = None
+        self.db.close()
+        self.db = None
 
     def initialize(self):
         for sql in self._sql_init:

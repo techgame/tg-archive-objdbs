@@ -27,16 +27,17 @@ class reduction_dict(list):
 class ObjectSerializer(object):
     _reduceProtocol = 2
 
-    def __init__(self, registry):
+    def __init__(self, reg):
         self._keepitclose = []
         self._deferredStores = []
-        self.dbid = registry.dbid
-        self.stg = registry.stg
-        self.objToOid = registry.objToOid
-        self.oidToObj = registry.oidToObj
+
+        stg = reg.stg
+        self.stg = stg
+        self.objToOid = stg.objToOid
+        self.oidToObj = stg.oidToObj
 
     def __repr__(self):
-        return self.dbid
+        return self.stg.dbid
 
     def __getstate__(self):
         raise RuntimeError("Tried to store storage mechanism: %r" % (self,))
@@ -120,6 +121,7 @@ class ObjectSerializer(object):
 
     def commit(self):
         self.storeDeferred()
+        self.oidToObj.commitOpen(self)
         self.stg.commit()
 
     def clearDeferred(self):

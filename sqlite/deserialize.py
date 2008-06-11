@@ -19,23 +19,23 @@ from .proxy import ObjOidRef, ObjOidProxy
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class ObjectDeserializer(object):
-    def __init__(self, registry):
+    def __init__(self, reg):
         self._transitiveOids = set()
         self._deferredRefs = {}
-        self.dbid = registry.dbid
-        self.stg = registry.stg
-        self._save = registry._save
-        self.objToOid = registry.objToOid
-        self.oidToObj = registry.oidToObj
+
+        stg = reg.stg
+        self.reg = reg
+        self.stg = reg.stg
+        self.objToOid = stg.objToOid
+        self.oidToObj = stg.oidToObj
 
     def __repr__(self):
-        return self.dbid
+        return self.stg.dbid
 
     def __getstate__(self):
         raise RuntimeError("Tried to store storage mechanism: %r" % (self,))
 
     def close(self):
-        self._save = None
         self.stg = None
 
     def onLoadedObject(self, oid, obj):
@@ -118,8 +118,7 @@ class ObjectDeserializer(object):
         """Used by ObjOidRef to load state"""
         oid = oidRef.oid
         depth, oidRef = self._deferredRefs.pop(oid, (1, oidRef))
-        return self._loadAs_OidRef(oidRef, oid, depth)
- 
+        return self.reg._tcall(self._loadAs_OidRef, oidRef, oid, depth)
     
     def _loadAs_OidRef(self, oidRef, oid, depth):
         stg_kind, otype = self.stg.getOidInfo(oid)

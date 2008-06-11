@@ -10,11 +10,10 @@
 #~ Imports 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-import os
 import gc
-import sqlite3
 
 from .oidMappings import OidMapping, ObjMapping
+from .commands import ThreadedCommands
 from .serialize import ObjectSerializer
 from .deserialize import ObjectDeserializer
 from .sqlStorage import SQLStorage
@@ -23,29 +22,13 @@ from .sqlStorage import SQLStorage
 #~ Definitions 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-class SQLObjectRegistry(object):
+class SQLObjectRegistryBase(object):
     def __init__(self, filename, dbid=None):
-        self.objToOid = ObjMapping()
-        self.oidToObj = OidMapping()
-        self._initFileStorage(filename, dbid)
+        self._tinit()
+        self._tcall(self._initFileStorage, filename, dbid)
 
     def __getstate__(self):
         raise RuntimeError("Tried to store storage mechanism: %r" % (self,))
-
-    def _initFileStorage(self, filename, dbid=None):
-        filename = os.path.abspath(filename)
-        self.db = sqlite3.connect(filename)
-        self.db.isolation_level = "DEFERRED"
-
-        self.stg = SQLStorage(self.db)
-
-        self.dbid = self.stg.dbid
-        if self.dbid is None:
-            self.dbid = dbid or filename 
-            self.stg.dbid = self.dbid
-
-        self._save = ObjectSerializer(self)
-        self._load = ObjectDeserializer(self)
 
     def externalUrlFns(self, urlForExternal, objForUrl):
         self._save.urlForExternal = urlForExternal
@@ -53,29 +36,22 @@ class SQLObjectRegistry(object):
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    def getMetadata(self):
-        """returns a copy of the metadata"""
-        return self.stg.getMetadata()
-    meta = property(getMetadata) 
-
-    def getMetaAttr(self, attr, default=None):
-        return self.stg.getMetaAttr(attr, default)
-    def setMetaAttr(self, attr, value):
-        return self.stg.setMetaAttr(attr, value)
-    def delMetaAttr(self, attr):
-        return self.stg.delMetaAttr(attr)
+    @property
+    def dbid(self):
+        return self.stg.dbid
 
     def commit(self): 
-        self.oidToObj.commitOpen(self._save)
-        return self._save.commit()
+        return self._tcall(self._save.commit)
+
     def gc(self): 
-        return self.stg.gc()
+        return self._tcall(self.stg.gc)
     def gcFull(self): 
-        return self.stg.gcFull()
+        return self._tcall(self.stg.gcFull)
     def gcCollect(self): 
-        return self.stg.gcCollect()
+        return self._tcall(self.stg.gcCollect)
     def allURLPaths(self):
-        return [url for url,oid in self.stg.allURLPaths()]
+        allURLPaths = self._tcall(self.stg.allURLPaths)
+        return [url for url,oid in allURLPaths]
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -86,30 +62,90 @@ class SQLObjectRegistry(object):
     def __delitem__(self, key, obj):
         return self.remove(obj)
 
-    def store(self, obj, urlpath=None):
-        return self._save.store(obj, urlpath)
-    def remove(self, obj):
-        return self._save.remove(obj)
-    def storeAll(self, iter, named=None):
-        return self._save.storeAll(iter, named)
     def load(self, oid, depth=1):
-        return self._load.loadOid(oid, depth)
-
-    def clearCaches(self):
-        self.oidToObj.clear()
-        self.objToOid.clear()
+        return self._tcall(self._load.loadOid, oid, depth)
+    def store(self, obj, urlpath=None):
+        return self._tcall(self._save.store, obj, urlpath)
+    def storeAll(self, iter, named=None):
+        return self._tcall(self._save.storeAll, iter, named)
+    def remove(self, obj):
+        return self._tcall(self._save.remove, obj)
 
     def close(self):
-        self.clearCaches()
+        return self._tcall(self._tclose)
 
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #~ Mediator Implementation
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    stg = None
+    _save = None
+    _load = None
+
+    def _initFileStorage(self, filename, dbid=None):
+        stg = SQLStorage(filename, dbid)
+        self.stg = stg
+
+        stg.objToOid = ObjMapping()
+        stg.oidToObj = OidMapping()
+
+        self._save = ObjectSerializer(self)
+        self._load = ObjectDeserializer(self)
+
+    def _close(self):
         self._load.close()
         self._save.close()
 
-        self.stg.close()
-        self.db.close()
+        self.stg.oidToObj.clear()
+        self.stg.objToOid.clear()
 
         del self._load
         del self._save
+
+        self.stg.close()
+
         del self.stg
-        del self.db
+
+    def _idle(self):
+        ##self.stg.gc()
+        pass
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #~ Thread Management
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    def _tinit(self):
+        raise NotImplementedError('Subclass Responsibility: %r' % (self,))
+    def _tcall(self):
+        raise NotImplementedError('Subclass Responsibility: %r' % (self,))
+    def _tsend(self):
+        raise NotImplementedError('Subclass Responsibility: %r' % (self,))
+    def _tclose(self):
+        raise NotImplementedError('Subclass Responsibility: %r' % (self,))
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~ Pool Threaded
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+class SQLObjectRegistry(SQLObjectRegistryBase):
+    _tcmds = None
+
+    def _tinit(self):
+        klass = self.__class__
+        tcmds = klass._tcmds
+        if tcmds is None:
+            tcmds = ThreadedCommands(timeout=1.0)
+            klass._tcmds = tcmds
+
+        tcmds.connect(self._idle, self._close)
+
+    def _tsend(self):
+        return self._tcmds.send(fn, *args, **kw)
+
+    def _tcall(self, fn, *args, **kw):
+        return self._tcmds.call(fn, *args, **kw)
+
+    def _tclose(self):
+        tcmds = self._tcmds
+        tcmds.disconnect(self._idle, self._close)
 
