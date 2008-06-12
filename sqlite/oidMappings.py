@@ -68,6 +68,8 @@ class OidMapping(dict):
         for oid, v in self._woids.items():
             if isinstance(v, ObjOidProxy):
                 continue
+            if isinstance(oid, basestring):
+                continue
             newOid = save.storeOpen(v)
             assert newOid == oid, (oid, newOid, type(v))
 
