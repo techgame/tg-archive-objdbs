@@ -116,9 +116,9 @@ class SQLObjectRegistryBase(object):
 
     def _tinit(self):
         raise NotImplementedError('Subclass Responsibility: %r' % (self,))
-    def _tcall(self):
+    def _tcall(self, fn, *args, **kw):
         raise NotImplementedError('Subclass Responsibility: %r' % (self,))
-    def _tsend(self):
+    def _tsend(self, fn, *args, **kw):
         raise NotImplementedError('Subclass Responsibility: %r' % (self,))
     def _tclose(self):
         raise NotImplementedError('Subclass Responsibility: %r' % (self,))
@@ -139,7 +139,7 @@ class SQLObjectRegistry(SQLObjectRegistryBase):
 
         tcmds.connect(self._idle, self._close)
 
-    def _tsend(self):
+    def _tsend(self, fn, *args, **kw):
         return self._tcmds.send(fn, *args, **kw)
 
     def _tcall(self, fn, *args, **kw):
