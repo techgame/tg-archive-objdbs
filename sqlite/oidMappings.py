@@ -31,9 +31,9 @@ class OidMapping(dict):
 
         if not replace:
             if oid in self:
-                assert self[oid] is obj, (oid, self[oid])
+                assert self[oid] is obj, (oid, self[oid], obj)
             if oid in self._woids:
-                assert self._woids[oid] is obj, (oid, self._woids[oid])
+                assert self._woids[oid] is obj, (oid, self._woids[oid], obj)
         try:
             self._woids[oid] = obj
             self.pop(oid, None)
@@ -48,9 +48,9 @@ class OidMapping(dict):
 
         if not replace:
             if oid in self:
-                assert self[oid] is obj, (oid, self[oid])
+                assert self[oid] is obj, (oid, self[oid], obj)
             if oid in self._woids:
-                assert self._woids[oid] is obj, (oid, self._woids[oid])
+                assert self._woids[oid] is obj, (oid, self._woids[oid], obj)
 
         self[oid] = obj
         self._woids.pop(oid, None)

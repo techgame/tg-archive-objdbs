@@ -263,7 +263,7 @@ class ObjectSerializer(object):
     @regType([reduction_list])
     def _storeAs_reductionList(self, obj):
         oid = self._stg_oid(obj, 'reduction', 'list', True)
-        self._stg_setOrdered(oid, obj)
+        r = self._stg_setOrdered(oid, obj)
         return oid
 
     @regType([reduction_dict])

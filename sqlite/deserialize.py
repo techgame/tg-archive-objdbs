@@ -217,11 +217,11 @@ class ObjectDeserializer(object):
 
     @regKind('reduction', False)
     def _loadAs_reduction(self, oid, stg_kind, otype, depth):
-        result = self._stg_getMapping(oid, depth)
-
         if otype == 'dict':
+            result = self._stg_getMapping(oid, depth)
             result = dict(result)
         elif otype == 'list':
+            result = self._stg_getOrdered(oid, depth)
             result = list(result)
         else: 
             assert False, (stg_kind, otype, result)
@@ -254,7 +254,7 @@ class ObjectDeserializer(object):
                 obj.__setstate__(state)
             else: 
                 obj.__dict__.update(state)
-            #reduction['state'] = state
+            reduction['state'] = state
             del state
             tempOids.discard(rEntry[0])
 
@@ -264,12 +264,13 @@ class ObjectDeserializer(object):
             tempOids.add(rEntry[0])
 
             listitems = load(rEntry, sdepth)
+
             if hasattr(obj, 'extend'):
                 obj.extend(listitems)
             else:
                 for v in listitems:
                     obj.append(v)
-            #reduction['listitems'] = listitems
+            reduction['listitems'] = listitems
             del listitems
             tempOids.discard(rEntry[0])
 
@@ -280,7 +281,7 @@ class ObjectDeserializer(object):
             dictitems = load(rEntry, sdepth)
             for k, v in dictitems.iteritems():
                 obj[k] = v
-            #reduction['dictitems'] = dictitems
+            reduction['dictitems'] = dictitems
             del dictitems
             tempOids.discard(rEntry[0])
 
