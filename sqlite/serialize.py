@@ -144,16 +144,21 @@ class ObjectSerializer(object):
     def urlForExternal(self, obj):
         return None
 
+    def urlForExternalRef(self, objRef):
+        return self.urlForExternal(objRef.proxy())
+
     def storeExternal(self, obj):
         if isinstance(obj, (ObjOidProxy, ObjOidRef)):
-            url = obj.__getProxy__().url
+            objRef = obj.__getProxy__()
+            if objRef.host.stg is self.stg:
+                return None
+            url = self.urlForExternalRef(objRef)
         else:
             url = self.urlForExternal(obj)
 
         if url is None:
             return None
 
-        assert False, ('external:', url)
         oid = self.oidForObj(obj, False)
         if oid is not None:
             return oid

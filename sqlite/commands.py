@@ -76,6 +76,8 @@ class ThreadedCommands(object):
                 r = fn(*args, **kw)
             except Exception, e:
                 traceback.print_exc()
+                print
+                print
                 if isCall: 
                     qResult.put((False, e))
             else:

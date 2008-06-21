@@ -38,8 +38,13 @@ class ObjectDeserializer(object):
     def close(self):
         self.stg = None
 
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
     def onLoadedObject(self, oid, obj):
         return obj
+
+    def onLoadedObjRef(self, oid, objRef):
+        return objRef
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -107,7 +112,9 @@ class ObjectDeserializer(object):
         fn, useProxy = self._loadByKindMap[stg_kind]
 
         if useProxy:
-            result = ObjOidRef(self, oid).proxy()
+            objRef = ObjOidRef(self, oid)
+            objRef = self.onLoadedObjRef(oid, objRef)
+            result = objRef.proxy()
         else:
             result = fn(self, oid, stg_kind, otype, depth-1)
 
@@ -202,10 +209,7 @@ class ObjectDeserializer(object):
     def _loadAs_external(self, oid, stg_kind, otype, depth):
         url = self.stg.getExternal(oid)
 
-        assert False, ('external:', oid, url)
         result = self.resolveExternalUrl(url)
-        if isinstance(result, (ObjOidRef, ObjOidProxy)):
-            result.__getProxy__().url = url
         return result
 
     def resolveExternalUrl(self, url):

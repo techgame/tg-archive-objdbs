@@ -18,8 +18,6 @@ from TG.objdbs.objProxy import ProxyComplete
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class ObjOidRef(object):
-    url = None
-
     def __init__(self, host, oid):
         self.host = host
         self.oid = oid
@@ -48,11 +46,11 @@ class ObjOidRef(object):
         self.wrproxy = weakref.ref(obj)
         return obj
 
-    forbidLoading = 0
+    #forbidLoading = 0
     def load(self, autoload=True):
         ref = self.ref
         if ref is None and autoload:
-            assert self.__class__.forbidLoading == 0
+            #assert self.__class__.forbidLoading == 0
             ref = self.host.loadOidRef(self)
         return ref
 

@@ -30,9 +30,13 @@ class SQLObjectRegistryBase(object):
     def __getstate__(self):
         raise RuntimeError("Tried to store storage mechanism: %r" % (self,))
 
-    def externalUrlFns(self, urlForExternal, objForUrl):
-        self._save.urlForExternal = urlForExternal
-        self._load.resolveExternalUrl = objForUrl
+    def externalUrlFns(self, host):
+        self._load.resolveExternalUrl = host.resolveExternalUrl
+        self._load.onLoadedObject = host.onLoadedObject
+        self._load.onLoadedObjRef = host.onLoadedObjRef
+
+        self._save.urlForExternal = host.urlForExternal
+        self._save.urlForExternalRef = host.urlForExternalRef
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -56,6 +60,9 @@ class SQLObjectRegistryBase(object):
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def __getitem__(self, key):
+        if isinstance(key, basestring):
+            if key.isdigit():
+                key = int(key)
         return self.load(key)
     def __setitem__(self, key, obj):
         return self.store(obj, key)
