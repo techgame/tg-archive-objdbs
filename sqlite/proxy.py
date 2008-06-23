@@ -69,6 +69,10 @@ class ObjOidProxy(ProxyComplete):
     def __hash__(self):
         raise TypeError("ObjOidProxy objects are unhashable")
 
+    def __reduce_ex__(self, proto):
+        obj = self.__proxy__()
+        return obj.__reduce_ex__(proto)
+
     def __getstate__(self):
         raise NotImplementedError("__getstate__ on ObjOidProxy should never be called")
 
