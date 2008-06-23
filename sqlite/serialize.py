@@ -232,8 +232,12 @@ class ObjectSerializer(object):
     #~ Storage by Reduction
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+    def onStoreObject(self, oid, obj):
+        pass
+
     def storeByReduce(self, obj):
         oid = self._stg_oid(obj, 'obj')
+        self.onStoreObject(oid, obj)
         self._defer(self._storeAs_reduction, oid, obj)
         return oid
 

@@ -37,6 +37,7 @@ class SQLObjectRegistryBase(object):
 
         self._save.urlForExternal = host.urlForExternal
         self._save.urlForExternalRef = host.urlForExternalRef
+        self._save.onStoreObject = host.onStoreObject
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
