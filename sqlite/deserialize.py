@@ -304,6 +304,8 @@ class ObjectDeserializer(object):
     def setOidForObj(self, obj, otype, oid, replace=False):
         if oid in self._transitiveOids:
             return oid
+        if obj is None:
+            return oid
 
         self.oidToObj.addByLoad(oid, obj, replace)
         self.objToOid.addByLoad(oid, obj, replace)

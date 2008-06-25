@@ -97,7 +97,7 @@ class ObjMapping(dict):
         key = self.keyForObj(obj)
         if not replace and key in self:
             if oid != self[key]:
-                print RuntimeError("Replacement of existing key: %s oid: %s entry: %s" % (key, oid, self[key]))
+                print RuntimeError("Replacement of existing key: %s obj: %s oid: %s entry: %s" % (key, obj.__class__,  oid, self[key]))
                 #raise RuntimeError("Replacement of existing key: %s oid: %s entry: %s" % (key, oid, self[key]))
         #if replace:
         #    print ' ::setByLoad:', (key, oid, type(obj).__name__)
@@ -111,6 +111,6 @@ class ObjMapping(dict):
         otype = type(obj)
         if otype in (int, long, float, complex, str, unicode):
             return (otype.__name__, obj)
-        else:
+        elif obj is not None:
             return id(obj)
 
