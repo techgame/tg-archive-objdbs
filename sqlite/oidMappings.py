@@ -87,7 +87,8 @@ class ObjMapping(dict):
         if not replace and key in self:
             last = self[key]
             if (oid != last) and (self.oidToObj[last] is not None):
-                raise RuntimeError("Replacement of existing key:%r prev:%r new:%r obj: %r" % (key, last, oid, obj))
+                print RuntimeError("Replacement of existing key:%r prev:%r new:%r obj: %r" % (key, last, oid, obj))
+                #raise RuntimeError("Replacement of existing key:%r prev:%r new:%r obj: %r" % (key, last, oid, obj))
 
         self[key] = oid
         ##assert self.find(obj) == oid
