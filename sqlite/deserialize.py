@@ -112,7 +112,7 @@ class ObjectDeserializer(object):
         fn, useProxy = self._loadByKindMap[stg_kind]
 
         if useProxy:
-            objRef = ObjOidRef(self, oid)
+            objRef = ObjOidRef(self, oid, otype)
             objRef = self.onLoadedObjRef(oid, objRef)
             result = objRef.proxy()
         else:

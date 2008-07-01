@@ -25,15 +25,11 @@ class OidMapping(dict):
         return self._woids.get(oid, None)
 
     def addByLoad(self, oid, obj, replace=False):
-        #if replace:
-        #    print 'setByLoad:', (oid, id(obj), type(obj).__name__)
-        #else: print 'addByLoad:', (oid, id(obj), type(obj).__name__)
-
-        if not replace:
-            if oid in self:
-                assert self[oid] is obj, (oid, self[oid], obj)
-            if oid in self._woids:
-                assert self._woids[oid] is obj, (oid, self._woids[oid], obj)
+        #if not replace:
+        #    if oid in self:
+        #        assert self[oid] is obj, (oid, self[oid], obj)
+        #    if oid in self._woids:
+        #        assert self._woids[oid] is obj, (oid, self._woids[oid], obj)
         try:
             self._woids[oid] = obj
             self.pop(oid, None)
@@ -42,15 +38,11 @@ class OidMapping(dict):
             self._woids.pop(oid, None)
 
     def addByStore(self, oid, obj, replace=False):
-        #if replace:
-        #    print 'setByStore:', (oid, id(obj), type(obj).__name__)
-        #else: print 'addByStore:', (oid, id(obj), type(obj).__name__)
-
-        if not replace:
-            if oid in self:
-                assert self[oid] is obj, (oid, self[oid], obj)
-            if oid in self._woids:
-                assert self._woids[oid] is obj, (oid, self._woids[oid], obj)
+        #if not replace:
+        #    if oid in self:
+        #        assert self[oid] is obj, (oid, self[oid], obj)
+        #    if oid in self._woids:
+        #        assert self._woids[oid] is obj, (oid, self._woids[oid], obj)
 
         self[oid] = obj
         self._woids.pop(oid, None)
@@ -62,8 +54,8 @@ class OidMapping(dict):
     def commitOpen(self, save):
         for oid, v in self.items():
             newOid = save.storeOpen(v)
-            if v is not None:
-                assert newOid == oid, (oid, newOid, type(v))
+            #if v is not None:
+            #    assert newOid == oid, (oid, newOid, type(v))
 
         for oid, v in self._woids.items():
             if isinstance(v, ObjOidProxy):
@@ -71,7 +63,7 @@ class OidMapping(dict):
             if isinstance(oid, basestring):
                 continue
             newOid = save.storeOpen(v)
-            assert newOid == oid, (oid, newOid, type(v))
+            #assert newOid == oid, (oid, newOid, type(v))
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -83,29 +75,22 @@ class ObjMapping(dict):
     def addByStore(self, oid, obj, replace=False):
         key = self.keyForObj(obj)
         if not replace and key in self:
-            if oid != self[key]:
-                raise RuntimeError("Replacement of existing key: %s oid: %s entry: %s" % (key, oid, self[key]))
-        #if replace:
-        #    print ' ::setByStore:', (key, oid, type(obj).__name__)
-        #else: print ' ::addByStore:', (key, oid, type(obj).__name__)
-        self[key] = oid
-        ##self[key, None] = obj
+            last = self[key]
+            if (oid != last) and (self.oidToObj[last] is not None):
+                raise RuntimeError("Replacement of existing key:%r prev:%r new:%r obj: %r" % (key, last, oid, obj))
 
-        assert self.find(obj) == oid
+        self[key] = oid
+        ##assert self.find(obj) == oid
 
     def addByLoad(self, oid, obj, replace=False):
         key = self.keyForObj(obj)
         if not replace and key in self:
-            if oid != self[key]:
-                print RuntimeError("Replacement of existing key: %s obj: %s oid: %s entry: %s" % (key, obj.__class__,  oid, self[key]))
-                #raise RuntimeError("Replacement of existing key: %s oid: %s entry: %s" % (key, oid, self[key]))
-        #if replace:
-        #    print ' ::setByLoad:', (key, oid, type(obj).__name__)
-        #else: print ' ::addByLoad:', (key, oid, type(obj).__name__)
-        self[key] = oid
-        ##self[key, None] = obj
+            last = self[key]
+            if (oid != last) and (self.oidToObj[last] is not None):
+                raise RuntimeError("Replacement of existing key:%r prev:%r new:%r obj: %r" % (key, last, oid, obj))
 
-        assert self.find(obj) == oid
+        self[key] = oid
+        ##assert self.find(obj) == oid
 
     def keyForObj(self, obj):
         otype = type(obj)

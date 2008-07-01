@@ -96,6 +96,7 @@ class SQLObjectRegistryBase(object):
 
         stg.objToOid = ObjMapping()
         stg.oidToObj = OidMapping()
+        stg.objToOid.oidToObj = stg.oidToObj
 
         self._save = ObjectSerializer(self)
         self._load = ObjectDeserializer(self)
