@@ -83,7 +83,7 @@ class ObjMapping(dict):
         ##assert self.find(obj) == oid
 
     def addByLoad(self, oid, obj, replace=False):
-        key = self.keyForObj(obj)
+        key = self.keyForObj(obj, True)
         if not replace and key in self:
             last = self[key]
             if (oid != last) and (self.oidToObj[last] is not None):
@@ -93,10 +93,33 @@ class ObjMapping(dict):
         self[key] = oid
         ##assert self.find(obj) == oid
 
-    def keyForObj(self, obj):
+    def keyForObj(self, obj, retain=False):
         otype = type(obj)
         if otype in (int, long, float, complex, str, unicode):
-            return (otype.__name__, obj)
-        elif obj is not None:
-            return id(obj)
+            key = (otype.__name__, obj)
+            return key
+
+        elif obj is None:
+            key = None
+            return key
+
+        elif otype in (ObjOidProxy, ObjOidRef):
+            key = ('oid', obj.__getProxy__().oid)
+            return key
+
+        else:
+            key = id(obj)
+            if retain:
+                self[None, key] = obj
+
+        #if key in self:
+        #    oid = self[key]
+        #    last = self.oidToObj[oid]
+        #    if last is not None and last is not obj:
+        #        if otype in (ObjOidProxy, ObjOidRef) and obj.__proxy__() is last:
+        #            pass
+        #        else:
+        #            raise AssertionError("Inconsistent:", (last, obj, otype))
+
+        return key
 
