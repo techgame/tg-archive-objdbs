@@ -48,9 +48,9 @@ class ObjectDeserializer(object):
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    def loadOid(self, oid, depth=1):
+    def loadOid(self, oid, default=None, depth=1):
         if isinstance(oid, basestring):
-            return self.loadUrlPath(oid, depth)
+            return self.loadUrlPath(oid, default, depth)
 
         if not oid:
             return None
@@ -65,14 +65,14 @@ class ObjectDeserializer(object):
         self._loadDeferred()
         return result
 
-    def loadUrlPath(self, urlPath, depth=1):
+    def loadUrlPath(self, urlPath, default=None, depth=1):
         cr = self.oidToObj[urlPath]
         if cr is not None:
             return cr
 
         entry = self.stg.getAtURLPath(urlPath)
         if entry is None:
-            return None
+            return default
 
         result = self.loadEntry(entry, depth)
         self.oidToObj.addByLoad(urlPath, result)

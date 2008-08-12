@@ -60,6 +60,8 @@ class SQLObjectRegistryBase(object):
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+    def get(self, key, default=None):
+        return self.load(key, default)
     def __getitem__(self, key):
         if isinstance(key, basestring):
             if key.isdigit():
@@ -70,8 +72,8 @@ class SQLObjectRegistryBase(object):
     def __delitem__(self, key, obj):
         return self.remove(obj)
 
-    def load(self, oid, depth=1):
-        return self._tcall(self._load.loadOid, oid, depth)
+    def load(self, oid, default=None, depth=1):
+        return self._tcall(self._load.loadOid, oid, default, depth)
     def store(self, obj, urlpath=None):
         return self._tcall(self._save.store, obj, urlpath)
     def storeAll(self, iter, named=None):
