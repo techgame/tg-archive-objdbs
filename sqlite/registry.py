@@ -82,7 +82,7 @@ class SQLObjectRegistryBase(object):
         return self._tcall(self._save.remove, obj)
 
     def close(self):
-        return self._tcall(self._tclose)
+        return self._tclose()
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #~ Mediator Implementation
@@ -142,7 +142,7 @@ class SQLObjectRegistry(SQLObjectRegistryBase):
     _tcmds = None
 
     def _tinit(self):
-        klass = self.__class__
+        klass = self#.__class__
         tcmds = klass._tcmds
         if tcmds is None:
             tcmds = ThreadedCommands(timeout=1.0)
@@ -158,5 +158,6 @@ class SQLObjectRegistry(SQLObjectRegistryBase):
 
     def _tclose(self):
         tcmds = self._tcmds
+        tcmds.close()
         tcmds.disconnect(self._idle, self._close)
 

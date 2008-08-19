@@ -60,6 +60,16 @@ class ThreadedCommands(object):
             raise r
         return r
 
+    def close(self):
+        if currentThread() is self._thread:
+            raise RuntimeError("Do not close command queue within command queue")
+
+        self.qCommand.put((True, None, None, None))
+        complete, r = self.qResult.get()
+        if not complete:
+            raise r
+        return r
+
     def _t_process(self):
         qCommand = self.qCommand
         qResult = self.qResult
@@ -71,6 +81,9 @@ class ThreadedCommands(object):
             except Empty:
                 self._t_idle()
                 continue
+
+            if fn is None:
+                break
 
             try:
                 r = fn(*args, **kw)
@@ -85,7 +98,8 @@ class ThreadedCommands(object):
                     qResult.put((True, r))
 
         self._t_close()
-        qResult.put((True, None))
+        if isCall: 
+            qResult.put((True, None))
 
     def _t_idle(self):
         for fn in self._onIdle:
