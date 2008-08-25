@@ -15,6 +15,8 @@ import uuid
 import sqlite3
 from . import sqlCreateStorage
 
+deleteGarbage = sqlCreateStorage.deleteGarbage
+
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~ Definitions 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -344,7 +346,7 @@ class SQLStorage(object):
             r = r.execute('delete from oid_lookup where oid not in oidGraphMembers')
             nCollected = max(0, r.rowcount)
             if nCollected: 
-                r.executescript(_sql.deleteGarbage)
+                r.executescript(deleteGarbage)
                 self.db.commit()
 
         self.gcRestart()
