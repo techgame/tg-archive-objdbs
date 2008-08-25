@@ -10,10 +10,10 @@
 #~ Imports 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-import os
+import os, sys
 import uuid
 import sqlite3
-from . import sqlCreateStorage as _sql
+from . import sqlCreateStorage
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~ Definitions 
@@ -22,14 +22,14 @@ from . import sqlCreateStorage as _sql
 class SQLStorage(object):
     nextOid = None
     _sql_init = [
-        _sql.sqliteSetup,
-        _sql.createMetaTables,
-        _sql.createLookupTables,
-        _sql.createStorageTables,
-        _sql.createExternalTables,
-        _sql.createLookupViews,
-        _sql.createOidReferenceViews,
-        _sql.createReachabilityTable,
+        'sqliteSetup',
+        'createMetaTables',
+        'createLookupTables',
+        'createStorageTables',
+        'createExternalTables',
+        'createLookupViews',
+        'createOidReferenceViews',
+        'createReachabilityTable',
         ]
 
     def __init__(self, filename, dbid=None):
@@ -56,8 +56,22 @@ class SQLStorage(object):
         self.db = None
 
     def initialize(self):
-        for sql in self._sql_init:
-            self.cursor.executescript(sql)
+        for attrName in self._sql_init:
+            sqlOps = getattr(sqlCreateStorage, attrName)
+            for sql in sqlOps:
+                if isinstance(sql, tuple):
+                    sqlGuard, sql = sql
+
+                    try:
+                        self.cursor.executescript(sqlGuard)
+                    except sqlite3.OperationalError, e: pass
+                    else: continue
+
+                try:
+                    self.cursor.executescript(sql)
+                except sqlite3.OperationalError, e:
+                    print >> sys.stderr, "Error while executing creation script: %r" % (attrName,)
+                    raise
 
         self.fetchMetadata()
         self.nextOid = self.getMetaAttr('nextOid', 1000)
