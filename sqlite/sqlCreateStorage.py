@@ -1,24 +1,28 @@
-sqliteSetup = ["""
+sqliteSetup = [
+"""
 PRAGMA locking_mode = EXCLUSIVE;
 PRAGMA synchronous = NORMAL;
 PRAGMA encoding = "UTF-8"; 
 """]
 
-createMetaTables = ["""
+createMetaTables = [
+("select * from odb_metadata limit(1);", """
 create table if not exists odb_metadata (
     attr TEXT,
     value,
     primary key (attr) on conflict replace
 );
-""", """
+"""), 
+("select * from odb_sessions limit(1);", """
 create table if not exists odb_sessions (
     ssid integer primary key,
     session TEXT,
     nextOid integer
 );
-"""]
+""")]
 
-createLookupTables = ["""
+createLookupTables = [
+("select * from oid_lookup limit(1);", """
 create table if not exists oid_lookup (
     oid integer,
     stg_kind text not null,
@@ -27,9 +31,10 @@ create table if not exists oid_lookup (
     ssid integer,
     primary key (oid) on conflict replace
 );
-"""]
+""")]
 
-createStorageTables = ["""
+createStorageTables = [
+("select * from literals limit(1);", """
 create table if not exists literals (
     oid integer,
     value,
@@ -40,7 +45,8 @@ create table if not exists literals (
 
     primary key (oid) on conflict replace
 );
-""", """
+"""), 
+("select * from weakrefs limit(1);", """
 create table if not exists weakrefs (
     oid_host integer,
     oid_ref integer,
@@ -48,7 +54,8 @@ create table if not exists weakrefs (
     ssid integer,
     primary key (oid_host) on conflict replace
 );
-""", """
+"""), 
+("select * from mappings limit(1);", """
 create table if not exists mappings (
     tidx integer primary key,
     oid_host integer,
@@ -56,13 +63,13 @@ create table if not exists mappings (
     oid_value integer,
     ssid integer
 );
-""", """
 create index if not exists mappings_oid_host
     on mappings (oid_host);
-"""]
+""")]
 
 # Cross database concerns 
-createExternalTables = ["""
+createExternalTables = [
+("select * from externals limit(1);", """
 create table if not exists externals (
     oid integer,
     url TEXT,
@@ -71,7 +78,8 @@ create table if not exists externals (
 
     primary key (oid) on conflict replace
 );
-""", """
+"""), 
+("select * from exports limit(1);", """
 create table if not exists exports (
     urlpath TEXT,
     oid_ref integer,
@@ -80,12 +88,11 @@ create table if not exists exports (
 
     primary key (urlpath) on conflict replace
 );
-"""]
+""")]
 
 # views for referencing through lists, mappings, and weakrefs to the oid_lookup table
 createLookupViews = [
-("select * from lists_lookup limit(1);",
-"""
+("select * from lists_lookup limit(1);", """
 create view lists_lookup as
     select 
         oid_host,
@@ -98,8 +105,7 @@ create view lists_lookup as
         on v.oid = oid_value;
 """), 
 
-("select * from mappings_lookup limit(1);",
-"""
+("select * from mappings_lookup limit(1);", """
 create view mappings_lookup as
     select 
         oid_host,
@@ -120,8 +126,7 @@ create view mappings_lookup as
         on v.oid = oid_value;
 """), 
 
-("select * from weakrefs_lookup limit(1);",
-"""
+("select * from weakrefs_lookup limit(1);", """
 create view weakrefs_lookup as
     select 
         oid_host,
@@ -135,8 +140,7 @@ create view weakrefs_lookup as
         on v.oid = oid_ref;
 """), 
 
-("select * from exports_lookup limit(1);",
-"""
+("select * from exports_lookup limit(1);", """
 create view exports_lookup as
     select 
         urlpath, oid, stg_kind, otype
@@ -148,13 +152,13 @@ create view exports_lookup as
 
 # Views for determining referenced objects - does not handle self-refs
 createOidReferenceViews = [
-("select * from oids limit(1);",
-"""
+("select * from oids limit(1);", """
 create view oids as
   select oid from oid_lookup;
 """), ]
 
-createReachabilityTable = ["""
+createReachabilityTable = [
+"""
 create temp table if not exists oidGraphMembers (
     oid integer,
     primary key (oid) on conflict replace

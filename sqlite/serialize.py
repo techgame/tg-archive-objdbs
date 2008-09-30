@@ -120,9 +120,13 @@ class ObjectSerializer(object):
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def commit(self):
+        if not self.stg.writable:
+            return False
+
         self.storeDeferred()
         self.oidToObj.commitOpen(self)
         self.stg.commit()
+        return True
 
     def clearDeferred(self):
         del self._deferredStores[:]

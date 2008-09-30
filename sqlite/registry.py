@@ -45,6 +45,12 @@ class SQLObjectRegistryBase(object):
     def dbid(self):
         return self.stg.dbid
 
+    def getWritable(self):
+        return self.sql.getWritable()
+    def setWritable(self, writable=True):
+        return self._tcall(self.stg.setWritable, writable)
+    writable = property(getWritable, setWritable)
+
     def commit(self): 
         return self._tcall(self._save.commit)
 
