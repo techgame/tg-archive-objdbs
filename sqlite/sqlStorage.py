@@ -72,7 +72,7 @@ class SQLStorage(object):
                 try:
                     self.cursor.executescript(sql)
                 except sqlite3.OperationalError, e:
-                    print >> sys.stderr, "Error while executing creation script: %r" % (attrName,)
+                    print >> sys.stderr, "Error while executing creation script: %r on db: %s" % (attrName, self.dbFilename)
                     raise
 
         self.fetchMetadata()
@@ -105,7 +105,8 @@ class SQLStorage(object):
     def getDbid(self):
         return self.getMetaAttr('dbid')
     def setDbid(self, dbid):
-        return self.setMetaAttr('dbid', dbid)
+        if dbid != self.dbid:
+            return self.setMetaAttr('dbid', dbid)
     dbid = property(getDbid, setDbid)
 
     def newSession(self):
