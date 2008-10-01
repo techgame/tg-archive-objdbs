@@ -133,7 +133,6 @@ class SQLStorage(object):
         if session is None and self.writable:
             session = uuid.uuid4() # new random uuid
             self.session = session
-            print 'writable session:', (session, self.dbFilename)
             r = writeCursor.execute(
                 'insert into odb_sessions values (NULL, ?, ?)',
                 (str(session), self.nextOid))
