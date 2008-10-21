@@ -45,7 +45,9 @@ class SQLStorage(object):
         self.initialize()
 
         if self.dbid is None:
-            self.dbid = dbid or filename 
+            if dbid is None:
+                dbid = str(uuid.uuid4())
+            self.dbid = dbid
 
     def __getstate__(self):
         raise RuntimeError("Tried to store storage mechanism: %r" % (self,))
