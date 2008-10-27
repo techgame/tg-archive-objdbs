@@ -12,6 +12,8 @@
 
 import weakref
 import pickle 
+from copy_reg import __newobj__
+
 from .proxy import ObjOidRef, ObjOidProxy
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -185,6 +187,11 @@ class ObjectSerializer(object):
             return fn
         return registerFn
 
+    @regType([type])
+    def _storeAs_type(self, klass):
+        vref = '.'.join([klass.__module__, klass.__name__])
+        return self._stg_setLiteral(vref, 'type', 'type')
+
     @regType([type(None)])
     def _storeAs_noneValue(self, value):
         return self.stg.setOid(0, 'null', '')
@@ -195,9 +202,12 @@ class ObjectSerializer(object):
 
     @regType([complex])
     def _storeAs_pickleValue(self, obj):
+        tobj = type(obj)
+        ref = '.'.join([tobj.__module__, tobj.__name__])
+
         pobj = buffer(pickle.dumps(obj, 2))
         return self._stg_setLiteral(
-            pobj, type(obj).__name__, 'pickle')
+            pobj, ref, 'pickle')
 
     @regType([tuple])
     def _storeAs_tuple(self, obj):
@@ -261,15 +271,25 @@ class ObjectSerializer(object):
 
         raise Exception("Cannot store %r object: %r" % (obj.__class__.__name__, obj))
 
-    def _asReductionMap(self, fn, newArgs, state=None, listitems=None, dictitems=None):
+    def _asReductionMap(self, fn, args, state=None, listitems=None, dictitems=None):
+        flags = []
         if type(state) is dict:
             state = reduction_dict(state.items())
+        else: flags.append('stateEx')
+
+        if fn is __newobj__:
+            fn = None
+            args = args[1:]
+        else: 
+            fn = '%s.%s' % (fn.__module__,fn.__name__)
 
         reduction = [
-            ('args', reduction_list(newArgs[1:])), 
+            ('flags', ';'.join(flags)),
+            ('fn', fn),
+            ('args', reduction_list(args)), 
             ('state', state),
             ('listitems', listitems and reduction_list(listitems) or None),
-            ('dictitems', dictitems and reduction_dict(dictitems) or None)]
+            ('dictitems', dictitems and reduction_dict(dictitems) or None), ]
         reduction = [(k,v) for k,v in reduction if v]
         return reduction
 

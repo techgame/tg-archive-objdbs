@@ -99,7 +99,7 @@ class ObjectDeserializer(object):
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     _loadByKindMap = {}
-    def loadEntry(self, entry, depth):
+    def loadEntry(self, entry, depth, tempOids=None):
         oid, stg_kind, otype = entry
 
         if not oid:
@@ -108,6 +108,9 @@ class ObjectDeserializer(object):
         cr = self.oidToObj[oid]
         if cr is not None:
             return cr
+
+        if tempOids is not None:
+            tempOids.add(oid)
 
         fn, useProxy = self._loadByKindMap[stg_kind]
 
@@ -119,6 +122,9 @@ class ObjectDeserializer(object):
             result = fn(self, oid, stg_kind, otype, depth-1)
 
         self.setOidForObj(result, otype, oid)
+
+        if tempOids is not None:
+            tempOids.discard(oid)
         return result
 
     def loadOidRef(self, oidRef):
@@ -149,6 +155,12 @@ class ObjectDeserializer(object):
     @regKind('null', False)
     def _loadAs_none(self, oid, stg_kind, otype, depth):
         return None
+
+    @regKind('type', False)
+    def _loadAs_type(self, oid, stg_kind, otype, depth):
+        vref = self.stg.getLiteral(oid)
+        klass = self.lookupOType(vref)
+        return klass
 
     @regKind('lit', False)
     def _loadAs_literal(self, oid, stg_kind, otype, depth):
@@ -235,39 +247,55 @@ class ObjectDeserializer(object):
 
     @regKind('obj', True)
     def _loadAs_obj(self, oid, stg_kind, otype, depth):
+        tempOids = self._transitiveOids
         load = self.loadEntry
         reduction = self.stg.getMapping(oid)
         reduction = dict((load(k,-1), v) for k, v in reduction)
 
         klass = self.lookupOType(otype)
 
-        args = [load(v, 2) for v in reduction.get('args', ())]
-        obj = klass.__new__(klass, *args)
+        args = reduction.get('args')
+        if args is not None:
+            args = list(load(args, 1, tempOids))
+        else: args = []
+
+        reconstruct = reduction.get('fn')
+        if reconstruct is not None:
+            fn = load(reconstruct, 1)
+            reconstruct = self.lookupOType(fn)
+        else: 
+            reconstruct = klass.__new__
+            args.insert(0, klass)
+
+        obj = reconstruct(*args)
 
         if depth >= 0:
             sdepth = depth + 1
         else: sdepth = -1
 
-        tempOids = self._transitiveOids
-        if 'state' in reduction:
-            rEntry = reduction['state']
-            tempOids.add(rEntry[0])
+        if 'flags' in reduction:
+            flags = load(reduction['flags'], sdepth, tempOids)
+            flags = flags.split(';')
+        else: flags = []
 
-            state = load(rEntry, sdepth)
+        if 'state' in reduction:
+            state = load(reduction['state'], sdepth, tempOids)
+            if 'stateEx' in flags:
+                stateEx = (getattr(e, '__proxyItem__', e) for e in state)
+                state = type(state)(stateEx)
+
+            else: state = dict(state)
+
             if hasattr(obj, '__setstate__'):
                 obj.__setstate__(state)
             else: 
                 obj.__dict__.update(state)
             reduction['state'] = state
             del state
-            tempOids.discard(rEntry[0])
 
 
         if 'listitems' in reduction:
-            rEntry = reduction['listitems']
-            tempOids.add(rEntry[0])
-
-            listitems = load(rEntry, sdepth)
+            listitems = load(reduction['listitems'], sdepth, tempOids)
 
             if hasattr(obj, 'extend'):
                 obj.extend(listitems)
@@ -276,18 +304,13 @@ class ObjectDeserializer(object):
                     obj.append(v)
             reduction['listitems'] = listitems
             del listitems
-            tempOids.discard(rEntry[0])
 
         if 'dictitems' in reduction:
-            rEntry = reduction['dictitems']
-            tempOids.add(rEntry[0])
-
-            dictitems = load(rEntry, sdepth)
+            dictitems = load(reduction['dictitems'], sdepth, tempOids)
             for k, v in dictitems.iteritems():
                 obj[k] = v
             reduction['dictitems'] = dictitems
             del dictitems
-            tempOids.discard(rEntry[0])
 
         return self.onLoadedObject(oid, obj)
 
@@ -319,7 +342,7 @@ class ObjectDeserializer(object):
             try:
                 m = __import__(path, {}, {}, [name])
             except Exception:
-                print (path, dot, name)
+                print 'lookupOType Error:', (path, dot, name)
                 raise
 
         try:

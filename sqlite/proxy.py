@@ -84,6 +84,7 @@ class ObjOidProxy(ProxyComplete):
     def __proxy__(self):
         objRef = self.__getProxy__()
         return objRef.load(True)
+    __proxyItem__ = property(__proxy__)
 
     def __getattr__(self, name):
         obj = self.__proxy__()

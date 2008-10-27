@@ -40,6 +40,8 @@ class SQLStorage(object):
         db = sqlite3.connect(filename)
         db.isolation_level = "DEFERRED"
 
+        db.text_factory = str
+
         self.db = db
         self._cursor = db.cursor()
         self.initialize()
@@ -236,8 +238,8 @@ class SQLStorage(object):
     def findLiteral(self, value, value_hash, value_type):
         r = self.readCursor.execute(
             'select oid from literals '
-            '  where value=? and value_hash=? and value_type=?',
-            (value, value_hash, value_type))
+            '  where value_hash=? and value_type=?',
+            (value_hash, value_type))
         r = r.fetchone()
         if r is not None:
             return r[0]
@@ -246,19 +248,20 @@ class SQLStorage(object):
         r = self.readCursor.execute(
             'select value, value_type '
             '  from literals where oid=?', (oid,))
-        return r.fetchone()
+        return self.decodeLiteralEntry(r.fetchone())
 
     def getLiteral(self, oid):
         r = self.readCursor.execute(
-            'select value from literals ' 
+            'select value, value_type from literals ' 
             '  where oid=?', (oid,))
-        r = r.fetchone()
-        if r is not None:
-            return r[0]
+        return self.decodeLiteralEntry(r.fetchone())
+
     def setLiteral(self, value, value_hash, value_type, stg_kind):
         oid = self.findLiteral(value, value_hash, value_type)
         if oid is not None:
             return oid
+
+        value = self.encodeLiteral(value, value_type)
 
         r = self.writeCursor
         oid = self.setOid(None, stg_kind, value_type)
@@ -266,6 +269,23 @@ class SQLStorage(object):
             'insert into literals (oid, value, value_type, value_hash, ssid)'
             '  values(?, ?, ?, ?, ?)', (oid, value, value_type, value_hash, self.ssid))
         return oid
+
+    def encodeLiteral(self, value, value_type):
+        if value_type == 'unicode':
+            value = value.encode('utf-8')
+        elif value_type == 'str':
+            if '\x00' in value:
+                value = buffer(value)
+        return value
+    def decodeLiteralEntry(self, entry):
+        if entry is not None:
+            return self.decodeLiteral(entry[0], entry[1])
+    def decodeLiteral(self, value, value_type):
+        if value_type == 'unicode':
+            value = value.decode('utf-8')
+        elif value_type == 'str':
+            value = str(value)
+        return value
 
     def getExternal(self, oid):
         r = self.readCursor.execute(
