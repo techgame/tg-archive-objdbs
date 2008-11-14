@@ -13,9 +13,7 @@
 import os, sys
 import uuid
 import sqlite3
-from . import sqlCreateStorage
-
-deleteGarbage = sqlCreateStorage.deleteGarbage
+from . import sqlCreateStorage as sql
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~ Definitions 
@@ -23,16 +21,7 @@ deleteGarbage = sqlCreateStorage.deleteGarbage
 
 class SQLStorage(object):
     nextOid = None
-    _sql_init = [
-        'sqliteSetup',
-        'createMetaTables',
-        'createLookupTables',
-        'createStorageTables',
-        'createExternalTables',
-        'createLookupViews',
-        'createOidReferenceViews',
-        'createReachabilityTable',
-        ]
+    _sql_init = sql.initScripts
 
     def __init__(self, filename, dbid=None):
         filename = os.path.abspath(filename)
@@ -62,34 +51,12 @@ class SQLStorage(object):
         self.db = None
 
     def initialize(self):
-        writeOps = 0
-        cursor = self.readCursor
-        for attrName in self._sql_init:
-            sqlOps = getattr(sqlCreateStorage, attrName)
-            for sql in sqlOps:
-                if isinstance(sql, tuple):
-                    sqlGuard, sql = sql
-
-                    try: cursor.executescript(sqlGuard)
-                    except sqlite3.OperationalError, e: pass
-                    else: continue
-
-                    try: 
-                        cursor.executescript(sql)
-                        writeOps += 1
-                    except sqlite3.OperationalError, e:
-                        print >> sys.stderr, "Error while executing creation script: %r on db: %s" % (attrName, self.dbFilename)
-                        raise
-                else:
-                    try: cursor.executescript(sql)
-                    except sqlite3.OperationalError, e:
-                        print >> sys.stderr, "Error while executing initialization script: %r on db: %s" % (attrName, self.dbFilename)
-                        raise
+        exCur = sql.runScripts(self.readCursor, self._sql_init)
 
         self.fetchMetadata()
         self.nextOid = self.getMetaAttr('nextOid', 1000)
-        if writeOps:
-            self.newSession(cursor)
+        if exCur.writeOps:
+            self.newSession(self._cursor)
 
     def fetchMetadata(self):
         self._metadata = dict()
@@ -169,18 +136,18 @@ class SQLStorage(object):
 
     def allOids(self):
         r = self.readCursor.execute(
-            'select oid from oid_lookup')
+            'select oid from oid_lookup_raw')
         return [e[0] for e in r.fetchall()]
 
     def allOidInfo(self):
         r = self.readCursor.execute(
-            'select * from oid_lookup')
+            'select oid, stg_kind, otype from oid_lookup_view')
         return r.fetchall()
 
     def getOidInfo(self, oid):
         r = self.readCursor.execute(
             'select stg_kind, otype '
-            '  from oid_lookup where oid=?', (oid,))
+            '  from oid_lookup_view where oid=?', (oid,))
         return r.fetchone()
 
     def setOid(self, oid, stg_kind, otype):
@@ -193,16 +160,61 @@ class SQLStorage(object):
         if not isinstance(stg_kind, str): 
             raise ValueError("Object storage stg_kind must be specified")
 
+        id_stg_kind = self._stgKindKeyFor(stg_kind)
+        id_otype = self._otypeKeyFor(otype)
+
         r = self.writeCursor
         r.execute(
-            'replace into oid_lookup (oid, stg_kind, otype, ssid) '
-            '  values(?, ?, ?, ?)', (oid, stg_kind, otype, self.ssid))
+            'replace into oid_lookup_raw (oid, id_stg_kind, id_otype, ssid) '
+            '  values(?, ?, ?, ?)', (oid, id_stg_kind, id_otype, self.ssid))
         return oid
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    _stgKindMap = None
+    def getStgKindMap(self):
+        stgKindMap = self._stgKindMap
+        if stgKindMap is None:
+            ex = self.readCursor.execute
+            stgKindMap = dict(ex('select stg_kind, id_stg_kind from stg_kind_lookup'))
+            self._stgKindMap = stgKindMap
+        return stgKindMap
+    stgKindMap = property(getStgKindMap)
+
+    def _stgKindKeyFor(self, stg_kind):
+        id_stg_kind = self.stgKindMap.get(stg_kind)
+        if id_stg_kind is None:
+            w = self.writeCursor
+            w.execute('insert into stg_kind_lookup values (NULL, ?)', (stg_kind,))
+            id_stg_kind = w.lastrowid
+            self.stgKindMap[stg_kind] = id_stg_kind
+        return id_stg_kind
+
+    _otypeMap = None
+    def getOtypeMap(self):
+        otypeMap = self._otypeMap
+        if otypeMap is None:
+            ex = self.readCursor.execute
+            otypeMap = dict(ex('select otype, id_otype from otype_lookup'))
+            self._otypeMap = otypeMap
+        return otypeMap
+    otypeMap = property(getOtypeMap)
+
+    def _otypeKeyFor(self, otype):
+        id_otype = self.otypeMap.get(otype)
+        if id_otype is None:
+            w = self.writeCursor
+            w.execute('insert into otype_lookup values (NULL, ?)', (otype,))
+            id_otype = w.lastrowid
+            self.otypeMap[otype] = id_otype
+        return id_otype
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def removeOid(self, oid):
         r = self.writeCursor
         r.execute(
-            'delete from oid_lookup where oid=?', (oid,))
+            'delete from oid_lookup_raw where oid=?', (oid,))
         r.execute(
             'delete from exports where oid_ref=?', (oid,))
         r.execute(
@@ -358,13 +370,7 @@ class SQLStorage(object):
         self.gcRestart()
 
     def gcRestart(self):
-        r = self.writeCursor
-        if not r: return
-        r.execute('''
-            delete from oidGraphMembers;''')
-        r.execute('''
-            insert into oidGraphMembers 
-                select oid_ref from exports;''')
+        sql.gcRestart(self.writeCursor)
 
     def gc(self, reap=True):
         r = self.writeCursor
@@ -386,21 +392,7 @@ class SQLStorage(object):
         return self.gcFlush()
 
     def gcIter(self, r):
-        d = 0
-        r = r.execute('''
-            insert into oidGraphMembers
-                select oid_key from mappings
-                    where oid_host in oidGraphMembers
-                        and oid_key not in oidGraphMembers;''')
-        d += r.rowcount
-
-        r = r.execute('''
-            insert into oidGraphMembers
-                select oid_value from mappings
-                    where oid_host in oidGraphMembers 
-                        and oid_value not in oidGraphMembers;''')
-        d += r.rowcount
-        return d
+        return sql.gcIter(r)
 
     def gcReap(self, r):
         self.db.commit()
@@ -409,10 +401,10 @@ class SQLStorage(object):
 
         nCollected = 0
         if count > exports:
-            r = r.execute('delete from oid_lookup where oid not in oidGraphMembers')
+            r = r.execute('delete from oid_lookup_raw where oid not in oidGraphMembers')
             nCollected = max(0, r.rowcount)
             if nCollected: 
-                r.executescript(deleteGarbage)
+                sql.deleteGarbage(r)
                 self.db.commit()
 
         self.gcRestart()
