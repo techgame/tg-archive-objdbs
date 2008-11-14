@@ -306,14 +306,14 @@ def gcIter(cur):
             select oid_key from mappings
                 where oid_host in oidGraphMembers
                     and oid_key not in oidGraphMembers;''')
-    d += r.rowcount
+    d += cur.rowcount
 
     cur = cur.execute('''
         insert into oidGraphMembers
             select oid_value from mappings
                 where oid_host in oidGraphMembers 
                     and oid_value not in oidGraphMembers;''')
-    d += r.rowcount
+    d += cur.rowcount
     return d
 
 def deleteGarbage(cur):
