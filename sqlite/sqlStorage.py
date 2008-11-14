@@ -13,7 +13,7 @@
 import os, sys
 import uuid
 import sqlite3
-from . import sqlCreateStorage as sql
+from . import sqlScripts as sql
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~ Definitions 
