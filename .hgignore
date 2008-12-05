@@ -37,9 +37,12 @@ Thumbs.db
 
 # Various MacOSX generated files
 syntax: glob 
-Icon?
 \.DS_Store
 \.Trashes
 Desktop\ DB
 Desktop\ DF
+
+
+syntax: regexp
+Icon\r
 
