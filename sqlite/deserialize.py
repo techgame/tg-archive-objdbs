@@ -10,6 +10,7 @@
 #~ Imports 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+import sys
 import weakref
 import pickle 
 from .proxy import ObjOidRef, ObjOidProxy
@@ -235,7 +236,18 @@ class ObjectDeserializer(object):
     def _loadAs_reduction(self, oid, stg_kind, otype, depth):
         if otype == 'dict':
             result = self._stg_getMapping(oid, depth)
-            result = dict(result)
+            try:
+                result = dict(result)
+            except TypeError:
+                mappingList = result
+                result = dict()
+                for (k,v) in mappingList:
+                    try: result[k] = v
+                    except TypeError: 
+                        print >> sys.stdout
+                        print >> sys.stdout, 'Error deserializing in loadAs_reduction key: %r value type: %r' % (k, type(v))
+                        print >> sys.stdout
+            return result
         elif otype == 'list':
             result = self._stg_getOrdered(oid, depth)
             result = list(result)
@@ -264,10 +276,22 @@ class ObjectDeserializer(object):
             fn = load(reconstruct, 1)
             reconstruct = self.lookupOType(fn)
         else: 
+            fn = None
             reconstruct = klass.__new__
             args.insert(0, klass)
 
-        obj = reconstruct(*args)
+        try:
+            obj = reconstruct(*args)
+        except Exception:
+            print >> sys.stdout
+            print >> sys.stdout, 'Error deserializing in loadAs_reduction key: %r value type: %r' % (k, type(v))
+            print >> sys.stdout, "reconstruct:", repr(reconstruct)
+            print >> sys.stdout, "  reduction:", repr(reduction,)
+            print >> sys.stdout, "  fn:", repr(fn,)
+            print >> sys.stdout, "  klass:", repr(klass,)
+            print >> sys.stdout, "  args:", repr(args,)
+            print >> sys.stdout
+            raise
 
         if depth >= 0:
             sdepth = depth + 1
@@ -342,7 +366,9 @@ class ObjectDeserializer(object):
             try:
                 m = __import__(path, {}, {}, [name])
             except Exception:
-                print 'lookupOType Error:', (path, dot, name)
+                print >> sys.stdout
+                print >> sys.stdout, 'Error in lookupOType:', (path, dot, name)
+                print >> sys.stdout
                 raise
 
         try:
