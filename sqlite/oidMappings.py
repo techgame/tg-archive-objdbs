@@ -93,9 +93,11 @@ class ObjMapping(dict):
         self[key] = oid
         ##assert self.find(obj) == oid
 
+    _basicTypeBases = set([int, long, float, complex, basestring, str, unicode])
     def keyForObj(self, obj, retain=False):
         otype = type(obj)
-        if otype in (int, long, float, complex, str, unicode):
+        baseType = otype.__mro__[-2:][0]
+        if baseType in self._basicTypeBases:
             key = (otype.__name__, obj)
             return key
 
