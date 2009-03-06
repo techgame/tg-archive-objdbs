@@ -71,33 +71,39 @@ class ThreadedCommands(object):
         return r
 
     def _t_process(self):
-        qCommand = self.qCommand
-        qResult = self.qResult
-        Empty = Queue.Empty
-        while 1:
-            try:
-                isCall, fn, args, kw = qCommand.get(True, self.timeout)
+        try:
+            qCommand = self.qCommand
+            qResult = self.qResult
+            Empty = Queue.Empty
+            while 1:
+                try:
+                    isCall, fn, args, kw = qCommand.get(True, self.timeout)
 
-            except Empty:
-                self._t_idle()
-                continue
+                except Empty:
+                    self._t_idle()
+                    continue
 
-            if fn is None:
-                break
+                if fn is None:
+                    break
 
-            try:
-                r = fn(*args, **kw)
-            except Exception, e:
-                traceback.print_exc()
-                print
-                print
-                if isCall: 
-                    qResult.put((False, e))
-            else:
-                if isCall: 
-                    qResult.put((True, r))
+                try:
+                    r = fn(*args, **kw)
+                except Exception, e:
+                    traceback.print_exc()
+                    print
+                    print
+                    if isCall: 
+                        qResult.put((False, e))
+                else:
+                    if isCall: 
+                        qResult.put((True, r))
 
-        self._t_close()
+        except KeyboardInterrupt:
+            return
+
+        finally:
+            self._t_close()
+
         if isCall: 
             qResult.put((True, None))
 
