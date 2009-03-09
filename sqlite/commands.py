@@ -86,24 +86,6 @@ class ThreadedCommands(object):
                 if fn is None:
                     break
 
-<<<<<<< local
-            try:
-                r = fn(*args, **kw)
-            except Exception, e:
-                traceback.print_exc()
-                print
-                print
-                if isCall: 
-                    qResult.put((False, e))
-            except TypeError, e:
-                print 'HA'
-                print e
-                if isCall: 
-                    qResult.put((False, e))
-            else:
-                if isCall: 
-                    qResult.put((True, r))
-=======
                 try:
                     r = fn(*args, **kw)
                 except Exception, e:
@@ -115,7 +97,6 @@ class ThreadedCommands(object):
                 else:
                     if isCall: 
                         qResult.put((True, r))
->>>>>>> other
 
         except KeyboardInterrupt:
             return
