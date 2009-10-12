@@ -16,6 +16,8 @@ pyVersion = sys.version_info[:2]
 
 if pyVersion == (2,5):
     from _objProxy25 import *
+elif pyVersion == (2,6):
+    from _objProxy26 import *
 else:
     raise ImportError("_objProxy not available for python %d.%d" % pyVersion)
 
