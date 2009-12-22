@@ -98,6 +98,8 @@ class SQLObjectRegistryBase(object):
     _save = None
     _load = None
 
+    ObjectSerializer = ObjectSerializer
+    ObjectDeserializer = ObjectDeserializer
     def _initFileStorage(self, filename, dbid=None):
         stg = SQLStorage(filename, dbid)
         self.stg = stg
@@ -106,8 +108,8 @@ class SQLObjectRegistryBase(object):
         stg.oidToObj = OidMapping()
         stg.objToOid.oidToObj = stg.oidToObj
 
-        self._save = ObjectSerializer(self)
-        self._load = ObjectDeserializer(self)
+        self._save = self.ObjectSerializer(self)
+        self._load = self.ObjectDeserializer(self)
 
     def _close(self):
         self._load.close()
