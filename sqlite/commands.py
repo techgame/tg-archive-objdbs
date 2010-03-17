@@ -10,7 +10,7 @@
 #~ Imports 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-import traceback
+import sys
 from threading import currentThread, Thread
 import Queue
 
@@ -89,7 +89,7 @@ class ThreadedCommands(object):
                 try:
                     r = fn(*args, **kw)
                 except Exception, e:
-                    traceback.print_exc()
+                    sys.excepthook(*sys.exc_info())
                     print
                     print
                     if isCall: 
