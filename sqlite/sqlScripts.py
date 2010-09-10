@@ -43,7 +43,7 @@ class ExCursor(object):
             self.run(sqlElse)
         return r
     def runIf(self, sqlIf, sqlThen):
-        runIfElse(sqlIf, sqlThen, None)
+        return self.runIfElse(sqlIf, sqlThen, None)
     def runIfNot(self, sqlIf, sqlElse):
         return self.runIfElse(sqlIf, None, sqlElse)
     def runIfNotSWH(self, sqlIf, sqlElse):
